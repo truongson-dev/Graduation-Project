@@ -136,3 +136,34 @@ it('handles a denied Google consent', function () {
         ->assertUnprocessable()
         ->assertJsonValidationErrors('state');
 });
+
+it('refuses to link an account when Google did not verify the email', function () {
+    $user = User::factory()->unverified()->create(['email' => 'squatted@example.com']);
+
+    Socialite::fake('google', SocialiteUser::fake([
+        'id' => 'google-unverified',
+        'email' => 'squatted@example.com',
+        'email_verified' => false,
+    ]));
+
+    $state = $this->getJson('/api/v1/auth/social/google/redirect?device_name=pixel-8')
+        ->json('data.state');
+
+    $this->getJson('/api/v1/auth/social/google/callback?code=fake-code&state='.$state)
+        ->assertUnprocessable()
+        ->assertJsonValidationErrors('email');
+
+    expect($user->fresh()->google_id)->toBeNull();
+});
+
+it('rejects a callback coming from another client', function () {
+    Socialite::fake('google');
+
+    $state = $this->getJson('/api/v1/auth/social/google/redirect?device_name=pixel-8')
+        ->json('data.state');
+
+    $this->withServerVariables(['REMOTE_ADDR' => '203.0.113.9'])
+        ->getJson('/api/v1/auth/social/google/callback?code=fake-code&state='.$state)
+        ->assertUnprocessable()
+        ->assertJsonValidationErrors('state');
+});
