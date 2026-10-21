@@ -67,7 +67,7 @@ class AppServiceProvider extends ServiceProvider
      */
     private function configurePasswordRules(): void
     {
-        Password::defaults(fn (): Password => Password::min(8)->letters()->numbers());
+        Password::defaults(fn (): Password => Password::min(8)->max(72)->letters()->mixedCase()->numbers());
     }
 
     /**

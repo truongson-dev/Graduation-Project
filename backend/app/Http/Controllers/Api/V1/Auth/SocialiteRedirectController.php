@@ -26,7 +26,7 @@ class SocialiteRedirectController extends Controller
         );
 
         $deviceName = $validated['device_name'] ?? null;
-        $state = OAuthState::remember(is_string($deviceName) ? $deviceName : null);
+        $state = OAuthState::remember($request, is_string($deviceName) ? $deviceName : null);
 
         /** @var AbstractProvider $provider */
         $provider = Socialite::driver('google');

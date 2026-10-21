@@ -78,3 +78,17 @@ it('rejects a password confirmation that does not match', function () {
     ])->assertUnprocessable()
         ->assertJsonValidationErrors('password');
 });
+
+it('rejects a password longer than the bcrypt limit', function () {
+    $password = str_repeat('a', 73);
+
+    $this->postJson('/api/v1/auth/register', [
+        'name' => 'Nguyen Van E',
+        'email' => 'e@example.com',
+        'password' => $password,
+        'password_confirmation' => $password,
+    ])->assertUnprocessable()
+        ->assertJsonValidationErrors('password');
+
+    $this->assertDatabaseCount('users', 0);
+});
