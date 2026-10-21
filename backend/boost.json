@@ -1,0 +1,27 @@
+{
+    "agents": [
+        "claude_code",
+        "codex"
+    ],
+    "cloud": true,
+    "guidelines": true,
+    "mcp": true,
+    "nightwatch": false,
+    "packages": [
+        "dedoc/scramble",
+        "spatie/laravel-permission",
+        "spatie/laravel-query-builder"
+    ],
+    "sail": false,
+    "skills": [
+        "infer-conventions",
+        "deploying-to-cloud",
+        "laravel-best-practices",
+        "testing-best-practices",
+        "socialite-development",
+        "tailwindcss-development",
+        "scramble-development",
+        "laravel-permission-development",
+        "laravel-query-builder"
+    ]
+}
