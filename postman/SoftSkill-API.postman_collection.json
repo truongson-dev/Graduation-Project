@@ -1,0 +1,260 @@
+{
+  "info": {
+    "name": "SoftSkill API",
+    "description": "Collection API Laravel SoftSkill (backend/routes/api.php).\n\n- baseUrl: http://localhost:8000 (chay php artisan serve)\n- Auth: Sanctum Bearer token. Chay request Login hoac Register de tu luu `token` vao collection variables.\n- Route auth:sanctum dung header Authorization: Bearer {{token}}.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "item": [
+    {
+      "name": "Health",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{baseUrl}}/api/health",
+          "host": ["{{baseUrl}}"],
+          "path": ["api", "health"]
+        }
+      }
+    },
+    {
+      "name": "Auth",
+      "item": [
+        {
+          "name": "Register",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Nguyen Van A\",\n  \"email\": \"{{email}}\",\n  \"password\": \"{{password}}\",\n  \"password_confirmation\": \"{{password}}\",\n  \"device_name\": \"postman\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/auth/register",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "auth", "register"]
+            }
+          }
+        },
+        {
+          "name": "Login",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const body = pm.response.json();",
+                  "if (body && body.data && body.data.token) {",
+                  "  pm.collectionVariables.set('token', body.data.token);",
+                  "  console.log('token saved');",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"{{email}}\",\n  \"password\": \"{{password}}\",\n  \"device_name\": \"postman\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/auth/login",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "auth", "login"]
+            }
+          }
+        },
+        {
+          "name": "Me",
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [{ "key": "token", "value": "{{token}}", "type": "string" }]
+            },
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/auth/me",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "auth", "me"]
+            }
+          }
+        },
+        {
+          "name": "Logout",
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [{ "key": "token", "value": "{{token}}", "type": "string" }]
+            },
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/auth/logout",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "auth", "logout"]
+            }
+          }
+        },
+        {
+          "name": "Forgot Password",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"{{email}}\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/auth/forgot-password",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "auth", "forgot-password"]
+            }
+          }
+        },
+        {
+          "name": "Reset Password",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"token\": \"{{resetToken}}\",\n  \"email\": \"{{email}}\",\n  \"password\": \"{{password}}\",\n  \"password_confirmation\": \"{{password}}\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/auth/reset-password",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "auth", "reset-password"]
+            }
+          }
+        },
+        {
+          "name": "Verify Email",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/auth/email/verify/{{verifyId}}/{{verifyHash}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "auth", "email", "verify", "{{verifyId}}", "{{verifyHash}}"]
+            }
+          }
+        },
+        {
+          "name": "Resend Verification",
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [{ "key": "token", "value": "{{token}}", "type": "string" }]
+            },
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/auth/email/verification-notification",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "auth", "email", "verification-notification"]
+            }
+          }
+        },
+        {
+          "name": "Google Redirect",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/auth/social/google/redirect?device_name=postman",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "auth", "social", "google", "redirect"],
+              "query": [{ "key": "device_name", "value": "postman" }]
+            }
+          }
+        },
+        {
+          "name": "Google Callback",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/auth/social/google/callback?state={{googleState}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "auth", "social", "google", "callback"],
+              "query": [{ "key": "state", "value": "{{googleState}}" }]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "AI",
+      "item": [
+        {
+          "name": "Chat (stream)",
+          "request": {
+            "auth": {"type":"bearer","bearer":[{"key":"token","value":"{{token}}","type":"string"}]},
+            "method": "POST",
+            "header": [
+              { "key": "Accept", "value": "text/event-stream" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": { "mode": "raw", "raw": "{\n  \"message\": \"Làm sao để tự tin thuyết trình trước lớp?\",\n  \"conversation_id\": null\n}" },
+            "url": { "raw": "{{baseUrl}}/api/v1/ai/chat", "host": ["{{baseUrl}}"], "path": ["api", "v1", "ai", "chat"] }
+          }
+        },
+        {
+          "name": "Continue Chat",
+          "request": {
+            "auth": {"type":"bearer","bearer":[{"key":"token","value":"{{token}}","type":"string"}]},
+            "method": "POST",
+            "header": [
+              { "key": "Accept", "value": "text/event-stream" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": { "mode": "raw", "raw": "{\n  \"message\": \"Cho mình ví dụ cụ thể hơn.\",\n  \"conversation_id\": \"{{conversationId}}\"\n}" },
+            "url": { "raw": "{{baseUrl}}/api/v1/ai/chat", "host": ["{{baseUrl}}"], "path": ["api", "v1", "ai", "chat"] }
+          }
+        },
+        {
+          "name": "Feedback",
+          "request": {
+            "auth": {"type":"bearer","bearer":[{"key":"token","value":"{{token}}","type":"string"}]},
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"skill\": \"Giao tiếp\",\n  \"question\": \"Bạn xử lý thế nào khi đồng nghiệp không lắng nghe?\",\n  \"answer\": \"Mình sẽ đặt câu hỏi mở để hiểu lý do và thống nhất mục tiêu chung.\",\n  \"context\": \"Nhóm 5 người, dự án sinh viên.\"\n}" },
+            "url": { "raw": "{{baseUrl}}/api/v1/ai/feedback", "host": ["{{baseUrl}}"], "path": ["api", "v1", "ai", "feedback"] }
+          }
+        },
+        {
+          "name": "List Conversations",
+          "request": {
+            "auth": {"type":"bearer","bearer":[{"key":"token","value":"{{token}}","type":"string"}]},
+            "method": "GET",
+            "header": [],
+            "url": { "raw": "{{baseUrl}}/api/v1/ai/conversations", "host": ["{{baseUrl}}"], "path": ["api", "v1", "ai", "conversations"] }
+          }
+        },
+        {
+          "name": "Conversation Messages",
+          "request": {
+            "auth": {"type":"bearer","bearer":[{"key":"token","value":"{{token}}","type":"string"}]},
+            "method": "GET",
+            "header": [],
+            "url": { "raw": "{{baseUrl}}/api/v1/ai/conversations/{{conversationId}}/messages", "host": ["{{baseUrl}}"], "path": ["api", "v1", "ai", "conversations", "{{conversationId}}", "messages"] }
+          }
+        }
+      ]
+    },  ],
+  "variable": [
+    { "key": "baseUrl", "value": "http://localhost:8000" },
+    { "key": "token", "value": "" },
+    { "key": "email", "value": "user@example.com" },
+    { "key": "password", "value": "Password123" },
+    { "key": "resetToken", "value": "" },
+    { "key": "verifyId", "value": "1" },
+    { "key": "verifyHash", "value": "" },
+    { "key": "googleState", "value": "" },
+    { "key": "conversationId", "value": "" }
+  ]
+}
