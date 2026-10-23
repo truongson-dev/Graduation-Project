@@ -8,6 +8,7 @@ use App\Http\Requests\Auth\LoginRequest;
 use App\Models\User;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
 
 class LoginController extends Controller
@@ -23,7 +24,12 @@ class LoginController extends Controller
 
         $user = User::query()->where('email', $validated['email'])->first();
 
-        if (! $user instanceof User || ! Hash::check($validated['password'], $user->password)) {
+        // Hash a throwaway value when the account is missing, so both outcomes
+        // cost the same and the response cannot be timed to enumerate emails.
+        $passwordHash = $user instanceof User ? $user->password : Hash::make(Str::random(16));
+        $passwordIsValid = Hash::check($validated['password'], $passwordHash);
+
+        if (! $user instanceof User || ! $passwordIsValid) {
             throw ValidationException::withMessages([
                 'email' => 'Thông tin đăng nhập không chính xác.',
             ]);

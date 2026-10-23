@@ -8,6 +8,7 @@
     "require": {
         "php": "^8.3",
         "dedoc/scramble": "^0.13.49",
+        "laravel/ai": "^1.3",
         "laravel/framework": "^13.17",
         "laravel/sanctum": "^4.3",
         "laravel/socialite": "^5.31",
@@ -56,6 +57,9 @@
         "test": [
             "@php artisan config:clear --ansi @no_additional_args",
             "@php artisan test"
+        ],
+        "api:export": [
+            "@php artisan scramble:export --path=api.json"
         ],
         "post-autoload-dump": [
             "Illuminate\\Foundation\\ComposerScripts::postAutoloadDump",

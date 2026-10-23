@@ -1,0 +1,100 @@
+name: CI
+
+on:
+  push:
+    branches:
+      - dev
+      - main
+      - 'feature/**'
+      - 'fix/**'
+  pull_request:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  backend:
+    name: Backend (Laravel)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: backend
+    steps:
+      - name: Check out the repository
+        uses: actions/checkout@v4
+
+      - name: Set up PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.4'
+          extensions: mbstring, intl, pdo_sqlite, sqlite3, bcmath, fileinfo
+          coverage: none
+
+      - name: Cache Composer downloads
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/composer
+          key: composer-${{ runner.os }}-${{ hashFiles('backend/composer.lock') }}
+          restore-keys: composer-${{ runner.os }}-
+
+      - name: Install Composer dependencies
+        run: composer install --prefer-dist --no-interaction --no-progress
+
+      - name: Prepare the environment file
+        run: |
+          cp .env.example .env
+          php artisan key:generate --no-interaction
+
+      - name: Run the Pest suite
+        run: php artisan test --compact --colors=never
+
+      - name: Run Larastan
+        run: vendor/bin/phpstan analyse --no-progress
+
+      - name: Check the PHP code style
+        run: vendor/bin/pint --test
+
+      - name: Regenerate the OpenAPI document
+        run: composer api:export
+
+      - name: Fail when the committed OpenAPI document is stale
+        run: git diff --exit-code -- api.json
+
+  frontend:
+    name: Frontend (React)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - name: Check out the repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install npm dependencies
+        run: npm ci
+
+      - name: Typecheck
+        run: npm run typecheck
+
+      - name: Run the Vitest suite
+        run: npm test
+
+      - name: Build the production bundle
+        run: npm run build
+
+      - name: Regenerate the API types
+        run: npm run api:types
+
+      - name: Fail when the generated API types are stale
+        run: git diff --exit-code -- src/api/schema.ts

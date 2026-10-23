@@ -5,7 +5,7 @@ namespace App\Http\Controllers\Api\V1\Auth;
 use App\Http\Controllers\Controller;
 use App\Http\Resources\UserResource;
 use App\Models\User;
-use GuzzleHttp\Exception\ClientException;
+use GuzzleHttp\Exception\GuzzleException;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -23,7 +23,7 @@ class SocialiteCallbackController extends Controller
      */
     public function __invoke(Request $request): JsonResponse|RedirectResponse
     {
-        $intent = OAuthState::pull($request->query('state'));
+        $intent = OAuthState::pull($request->query('state'), $request);
 
         if ($intent === null) {
             throw ValidationException::withMessages([
@@ -41,7 +41,7 @@ class SocialiteCallbackController extends Controller
             /** @var AbstractProvider $provider */
             $provider = Socialite::driver('google');
             $googleUser = $provider->stateless()->user();
-        } catch (ClientException|InvalidStateException) {
+        } catch (GuzzleException|InvalidStateException) {
             throw ValidationException::withMessages([
                 'state' => 'Không thể xác thực với Google.',
             ]);
@@ -93,6 +93,15 @@ class SocialiteCallbackController extends Controller
         $existing = User::query()->where('email', $email)->first();
 
         if ($existing instanceof User) {
+            // Only an address Google has verified may take over the account
+            // that already owns it; otherwise the identity could be used to
+            // sign in as somebody else.
+            if (! $providerVerified) {
+                throw ValidationException::withMessages([
+                    'email' => 'Tài khoản Google chưa xác minh email này.',
+                ]);
+            }
+
             if ($existing->google_id !== null && $existing->google_id !== $googleId) {
                 throw ValidationException::withMessages([
                     'email' => 'Email đã được liên kết với một tài khoản Google khác.',
@@ -104,7 +113,7 @@ class SocialiteCallbackController extends Controller
                 'avatar_url' => $existing->avatar_url ?? $avatarUrl,
             ]);
 
-            if ($providerVerified && ! $existing->hasVerifiedEmail()) {
+            if (! $existing->hasVerifiedEmail()) {
                 $existing->email_verified_at = now();
             }
 
