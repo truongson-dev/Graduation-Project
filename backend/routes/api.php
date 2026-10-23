@@ -1,5 +1,9 @@
 <?php
 
+use App\Http\Controllers\Api\V1\Ai\ChatController;
+use App\Http\Controllers\Api\V1\Ai\ConversationIndexController;
+use App\Http\Controllers\Api\V1\Ai\ConversationMessagesController;
+use App\Http\Controllers\Api\V1\Ai\FeedbackController;
 use App\Http\Controllers\Api\V1\Auth\ForgotPasswordController;
 use App\Http\Controllers\Api\V1\Auth\LoginController;
 use App\Http\Controllers\Api\V1\Auth\LogoutController;
@@ -10,6 +14,7 @@ use App\Http\Controllers\Api\V1\Auth\SendEmailVerificationController;
 use App\Http\Controllers\Api\V1\Auth\SocialiteCallbackController;
 use App\Http\Controllers\Api\V1\Auth\SocialiteRedirectController;
 use App\Http\Controllers\Api\V1\Auth\VerifyEmailController;
+use App\Http\Middleware\EnsureAiConfigured;
 use Illuminate\Support\Facades\Route;
 
 Route::get('/health', fn () => response()->json([
@@ -55,4 +60,20 @@ Route::prefix('v1/auth')->group(function (): void {
         Route::get('/me', MeController::class)->name('api.v1.auth.me');
         Route::post('/logout', LogoutController::class)->name('api.v1.auth.logout');
     });
+});
+
+Route::prefix('v1/ai')->middleware(['auth:sanctum', EnsureAiConfigured::class])->group(function (): void {
+    Route::post('/chat', ChatController::class)
+        ->middleware('throttle:ai-chat')
+        ->name('api.v1.ai.chat');
+
+    Route::post('/feedback', FeedbackController::class)
+        ->middleware('throttle:ai-feedback')
+        ->name('api.v1.ai.feedback');
+
+    Route::get('/conversations', ConversationIndexController::class)
+        ->name('api.v1.ai.conversations.index');
+
+    Route::get('/conversations/{conversation}/messages', ConversationMessagesController::class)
+        ->name('api.v1.ai.conversations.messages');
 });
