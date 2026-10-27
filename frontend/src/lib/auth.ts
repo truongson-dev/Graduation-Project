@@ -79,18 +79,19 @@ export function useRegister() {
 
   return useMutation({
     mutationFn: async (input: RegisterInput) => {
-      const response = await api.post<AuthEnvelope>(endpoints.auth.register, {
+      const response = await api.post<{ data: { user: AuthUser } }>(endpoints.auth.register, {
         name: input.name,
         email: input.email,
         password: input.password,
         password_confirmation: input.passwordConfirmation,
-        device_name: 'web',
+        login_after_registration: false,
       });
 
-      return storeSession(response, true);
+      return response.data.data.user;
     },
-    onSuccess: (user) => {
-      queryClient.setQueryData(ME_QUERY_KEY, user);
+    onSuccess: () => {
+      clearToken();
+      queryClient.removeQueries({ queryKey: ME_QUERY_KEY });
     },
   });
 }

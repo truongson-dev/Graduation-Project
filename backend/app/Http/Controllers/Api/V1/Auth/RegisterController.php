@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Api\V1\Auth;
 use App\Http\Controllers\Concerns\HandlesAuthentication;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Auth\RegisterRequest;
+use App\Http\Resources\UserResource;
 use App\Models\User;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Support\Facades\DB;
@@ -21,7 +22,9 @@ class RegisterController extends Controller
     {
         $validated = $request->validated();
         $deviceName = $validated['device_name'] ?? null;
+        $loginAfterRegistration = $validated['login_after_registration'] ?? true;
         unset($validated['device_name']);
+        unset($validated['login_after_registration']);
 
         $user = DB::transaction(function () use ($validated): User {
             $user = User::create($validated);
@@ -36,6 +39,12 @@ class RegisterController extends Controller
             // The account exists, so a mail outage must not fail the request;
             // the user can request a new link after signing in.
             report($exception);
+        }
+
+        if (! $loginAfterRegistration) {
+            return response()->json([
+                'data' => ['user' => UserResource::make($user)],
+            ], 201);
         }
 
         return $this->authenticatedResponse(

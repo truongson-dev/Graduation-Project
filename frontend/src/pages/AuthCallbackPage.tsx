@@ -14,7 +14,7 @@ export const AuthCallbackPage: React.FC = () => {
       return;
     }
 
-    navigate('/coach', { replace: true });
+    navigate('/home', { replace: true });
   }, [navigate]);
 
   return (

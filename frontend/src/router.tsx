@@ -3,6 +3,7 @@ import { createBrowserRouter, Navigate, useLocation, type RouteObject } from 're
 import { AuthCallbackPage } from './pages/AuthCallbackPage';
 import { AuthPage } from './pages/AuthPage';
 import { CoachPage } from './pages/CoachPage';
+import { HomePage } from './pages/HomePage';
 import { ResetPasswordPage } from './pages/ResetPasswordPage';
 import { readToken } from './lib/token';
 import { useMe } from './lib/auth';
@@ -40,6 +41,14 @@ export const routes: RouteObject[] = [
   { path: '/', element: <AuthPage /> },
   { path: '/auth/callback', element: <AuthCallbackPage /> },
   { path: '/reset-password', element: <ResetPasswordPage /> },
+  {
+    path: '/home',
+    element: (
+      <RequireAuth>
+        <HomePage />
+      </RequireAuth>
+    ),
+  },
   {
     path: '/coach',
     element: (

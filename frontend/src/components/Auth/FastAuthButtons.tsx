@@ -8,7 +8,7 @@ interface FastAuthButtonsProps {
 
 export const FastAuthButtons: React.FC<FastAuthButtonsProps> = ({ onGoogleClick, isLoading = false }) => {
   return (
-    <div className="mb-6">
+    <div className="mb-5">
       <button
         type="button"
         onClick={onGoogleClick}

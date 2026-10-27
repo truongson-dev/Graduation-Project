@@ -11,7 +11,7 @@ export const AuthTabs: React.FC<AuthTabsProps> = ({ currentMode, onChangeMode })
     <div
       role="tablist"
       aria-label="Chuyển chế độ đăng nhập hoặc đăng ký"
-      className="flex p-1 bg-slate-100 rounded-2xl mb-8 max-w-sm mx-auto w-full border border-slate-200/60 shadow-inner"
+      className="flex p-1 bg-slate-100/90 rounded-2xl mb-5 max-w-sm mx-auto w-full border border-slate-200/60 shadow-inner"
     >
       <button
         role="tab"

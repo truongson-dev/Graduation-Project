@@ -43,6 +43,7 @@ export const AuthForm: React.FC<AuthFormProps> = ({ onForgotPassword }) => {
   const navigate = useNavigate();
   const [mode, setMode] = useState<AuthMode>('login');
   const [generalError, setGeneralError] = useState<string | null>(null);
+  const [successMessage, setSuccessMessage] = useState<string | null>(null);
   const [googleLoading, setGoogleLoading] = useState(false);
 
   const login = useLogin();
@@ -67,12 +68,14 @@ export const AuthForm: React.FC<AuthFormProps> = ({ onForgotPassword }) => {
   const handleModeChange = (newMode: AuthMode) => {
     setMode(newMode);
     setGeneralError(null);
+    setSuccessMessage(null);
     loginForm.clearErrors();
     registerForm.clearErrors();
   };
 
   const submitLogin = loginForm.handleSubmit(async (values) => {
     setGeneralError(null);
+    setSuccessMessage(null);
 
     try {
       await login.mutateAsync({
@@ -80,7 +83,7 @@ export const AuthForm: React.FC<AuthFormProps> = ({ onForgotPassword }) => {
         password: values.password,
         remember: values.rememberMe,
       });
-      navigate('/coach', { replace: true });
+      navigate('/home', { replace: true });
     } catch (error) {
       const info = getApiError(error);
 
@@ -97,6 +100,7 @@ export const AuthForm: React.FC<AuthFormProps> = ({ onForgotPassword }) => {
 
   const submitRegister = registerForm.handleSubmit(async (values) => {
     setGeneralError(null);
+    setSuccessMessage(null);
 
     try {
       await register.mutateAsync({
@@ -105,7 +109,11 @@ export const AuthForm: React.FC<AuthFormProps> = ({ onForgotPassword }) => {
         password: values.password,
         passwordConfirmation: values.passwordConfirmation,
       });
-      navigate('/coach', { replace: true });
+      registerForm.reset();
+      loginForm.setValue('email', values.email, { shouldValidate: true });
+      loginForm.setValue('password', '');
+      setMode('login');
+      setSuccessMessage('Tạo tài khoản thành công. Hãy đăng nhập bằng tài khoản vừa tạo.');
     } catch (error) {
       const info = getApiError(error);
 
@@ -135,7 +143,7 @@ export const AuthForm: React.FC<AuthFormProps> = ({ onForgotPassword }) => {
   const registerValues = registerForm.watch();
 
   return (
-    <div className="lg:col-span-7 p-6 sm:p-8 lg:p-10 flex flex-col justify-center">
+    <div className="auth-form p-5 sm:p-7 flex flex-col justify-center">
       <AuthTabs currentMode={mode} onChangeMode={handleModeChange} />
 
       <div className="mb-5">
@@ -156,10 +164,18 @@ export const AuthForm: React.FC<AuthFormProps> = ({ onForgotPassword }) => {
         </div>
       )}
 
+      {successMessage && (
+        <div role="status" className="mb-4 flex items-center gap-2.5 rounded-xl border border-emerald-200 bg-emerald-50 p-3.5 text-sm text-emerald-800">
+          <span className="material-symbols-outlined text-[20px] text-emerald-600">check_circle</span>
+          <span>{successMessage}</span>
+        </div>
+      )}
+
       <FastAuthButtons
         isLoading={googleLoading}
         onGoogleClick={async () => {
           setGeneralError(null);
+          setSuccessMessage(null);
           setGoogleLoading(true);
 
           try {
@@ -175,7 +191,7 @@ export const AuthForm: React.FC<AuthFormProps> = ({ onForgotPassword }) => {
         }}
       />
 
-      <div className="relative flex items-center justify-center mb-6">
+      <div className="relative flex items-center justify-center mb-5">
         <div className="border-t border-slate-200 w-full" />
         <span className="bg-white px-3 text-[11px] uppercase tracking-wider text-slate-400 font-semibold absolute">
           hoặc với tài khoản
@@ -363,8 +379,8 @@ export const AuthForm: React.FC<AuthFormProps> = ({ onForgotPassword }) => {
                 </span>
               ) : (
                 <>
-                  <span>Tạo tài khoản &amp; Bắt đầu học</span>
-                  <span className="material-symbols-outlined text-[18px]">rocket_launch</span>
+                  <span>Tạo tài khoản</span>
+                  <span className="material-symbols-outlined text-[18px]">person_add</span>
                 </>
               )}
             </button>

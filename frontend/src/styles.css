@@ -27,6 +27,65 @@ body {
   padding: 0;
 }
 
+.auth-page {
+  position: relative;
+  isolation: isolate;
+  overflow-x: hidden;
+  min-height: 100svh;
+  background: #eaf7fb;
+}
+
+.auth-page::before,
+.auth-page::after {
+  position: fixed;
+  inset: 0;
+  content: "";
+  pointer-events: none;
+}
+
+.auth-page::before {
+  z-index: -2;
+  background: url('/auth-background.png') center / cover no-repeat;
+  transform: scale(1.005);
+}
+
+.auth-page::after {
+  z-index: -1;
+  background: linear-gradient(90deg, rgb(239 250 255 / 25%), rgb(255 255 255 / 12%) 48%, rgb(239 250 255 / 24%));
+}
+
+.auth-main {
+  padding-top: 22px;
+  padding-bottom: 22px;
+}
+
+.auth-card {
+  max-width: 450px;
+  border: 1px solid rgb(255 255 255 / 85%);
+  border-radius: 28px;
+  background: rgb(255 255 255 / 94%);
+  box-shadow: 0 24px 70px rgb(23 78 109 / 18%), 0 3px 12px rgb(23 78 109 / 7%);
+  backdrop-filter: blur(18px);
+}
+
+@media (max-width: 640px) {
+  .auth-page::before {
+    background-position: 54% center;
+  }
+
+  .auth-page::after {
+    background: rgb(239 250 255 / 68%);
+  }
+
+  .auth-main {
+    padding: 20px 14px;
+  }
+
+  .auth-card {
+    border-radius: 22px;
+  }
+}
+
 /* Entrance animation for modals; the class name is used in markup. */
 @keyframes fadeIn {
   from {

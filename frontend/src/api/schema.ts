@@ -322,6 +322,7 @@ export interface components {
             email: string;
             password: string;
             device_name?: string | null;
+            login_after_registration?: boolean;
             password_confirmation: string;
         };
         /** ResetPasswordRequest */

@@ -1,7 +1,7 @@
 {
     "openapi": "3.1.2",
     "info": {
-        "title": "SoftSkill",
+        "title": "SoftSkill AI",
         "version": "1.0.0"
     },
     "servers": [
@@ -1104,6 +1104,9 @@
                             "null"
                         ],
                         "maxLength": 255
+                    },
+                    "login_after_registration": {
+                        "type": "boolean"
                     },
                     "password_confirmation": {
                         "type": "string"

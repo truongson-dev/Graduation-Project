@@ -30,6 +30,7 @@ class RegisterRequest extends FormRequest
             'email' => ['required', 'string', 'email', 'max:255', 'unique:users,email'],
             'password' => ['required', 'string', 'confirmed', Password::defaults()],
             'device_name' => ['nullable', 'string', 'max:255'],
+            'login_after_registration' => ['sometimes', 'boolean'],
         ];
     }
 }
