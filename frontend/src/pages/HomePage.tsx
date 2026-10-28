@@ -5,8 +5,8 @@ import { useLogout, useMe } from '../lib/auth';
 const navigation = [
   { label: 'Trang chủ', icon: 'dashboard', to: '/home', section: 'home' },
   { label: 'Lộ trình học', icon: 'route', to: '/home#learning-path', section: 'learning' },
-  { label: 'AI Chấm bài & Luyện tập', icon: 'smart_toy', to: '/coach', section: 'practice' },
-  { label: 'Phỏng vấn mô phỏng', icon: 'interpreter_mode', to: '/coach', section: 'interview' },
+  { label: 'AI Chấm bài & Luyện tập', icon: 'smart_toy', to: '/practice/setup', section: 'practice' },
+  { label: 'Phỏng vấn mô phỏng', icon: 'interpreter_mode', to: '/practice/setup', section: 'interview' },
   { label: 'Cài đặt tài khoản', icon: 'settings', to: '/home#account', section: 'account' },
 ];
 
@@ -171,7 +171,7 @@ export const HomePage: React.FC = () => {
                     <h2 className="truncate text-base font-bold text-slate-800 sm:text-lg">Kỹ năng phản xạ &amp; thuyết phục trong phỏng vấn</h2>
                     <p className="mt-1 max-w-2xl text-xs leading-relaxed text-slate-500">Bài 3: Kỹ thuật STAR nâng cao và xử lý các câu hỏi tình huống khó.</p>
                   </div>
-                  <Link to="/coach" className="inline-flex shrink-0 items-center justify-center gap-2 rounded-xl bg-teal-700 px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-teal-800"><Icon name="play_arrow" />Tiếp tục bài học</Link>
+                  <Link to="/practice/setup" className="inline-flex shrink-0 items-center justify-center gap-2 rounded-xl bg-teal-700 px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-teal-800"><Icon name="play_arrow" />Tiếp tục bài học</Link>
                 </div>
                 <div className="mt-5 flex items-center gap-3 text-[11px] text-slate-500"><div className="h-2 flex-1 overflow-hidden rounded-full bg-slate-100"><div className="h-full w-3/5 rounded-full bg-teal-700" /></div><span className="shrink-0 font-semibold">60%</span><span className="shrink-0">3 / 5 bài học</span></div>
               </section>
@@ -179,7 +179,7 @@ export const HomePage: React.FC = () => {
               <section>
                 <div className="mb-3 flex items-center justify-between gap-3"><h2 className="text-lg font-bold tracking-tight text-slate-800">Tác vụ cần hoàn thành gấp <span className="ml-1 rounded-full bg-rose-100 px-2 py-0.5 text-xs text-rose-700">3</span></h2><button type="button" className="shrink-0 text-xs font-semibold text-teal-800 hover:underline">Xem tất cả bài tập</button></div>
                 <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
-                  {tasks.map((task) => <article key={task.title} className="flex min-h-52 flex-col rounded-2xl border border-slate-100 bg-white p-4 shadow-sm transition hover:-translate-y-0.5 hover:shadow-md"><div className="flex items-center justify-between gap-2"><span className={`flex h-9 w-9 items-center justify-center rounded-xl ${task.tone}`}><Icon name={task.icon} /></span><span className={`rounded-full px-2.5 py-1 text-[10px] font-semibold ${task.tagTone}`}>{task.tag}</span></div><h3 className="mt-3 text-sm font-bold leading-snug text-slate-800">{task.title}</h3><p className="mt-1 line-clamp-2 text-xs leading-relaxed text-slate-500">{task.detail}</p><div className="mt-auto flex items-center justify-between pt-4 text-[11px]"><span className="font-semibold text-slate-500">{task.xp}</span><Link to="/coach" className="font-bold text-teal-800 hover:underline">{task.action} <span aria-hidden="true">›</span></Link></div></article>)}
+                  {tasks.map((task) => <article key={task.title} className="flex min-h-52 flex-col rounded-2xl border border-slate-100 bg-white p-4 shadow-sm transition hover:-translate-y-0.5 hover:shadow-md"><div className="flex items-center justify-between gap-2"><span className={`flex h-9 w-9 items-center justify-center rounded-xl ${task.tone}`}><Icon name={task.icon} /></span><span className={`rounded-full px-2.5 py-1 text-[10px] font-semibold ${task.tagTone}`}>{task.tag}</span></div><h3 className="mt-3 text-sm font-bold leading-snug text-slate-800">{task.title}</h3><p className="mt-1 line-clamp-2 text-xs leading-relaxed text-slate-500">{task.detail}</p><div className="mt-auto flex items-center justify-between pt-4 text-[11px]"><span className="font-semibold text-slate-500">{task.xp}</span><Link to="/practice/setup" className="font-bold text-teal-800 hover:underline">{task.action} <span aria-hidden="true">›</span></Link></div></article>)}
                 </div>
               </section>
 

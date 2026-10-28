@@ -4,6 +4,8 @@ import { AuthCallbackPage } from './pages/AuthCallbackPage';
 import { AuthPage } from './pages/AuthPage';
 import { CoachPage } from './pages/CoachPage';
 import { HomePage } from './pages/HomePage';
+import { PracticeSetupPage } from './pages/PracticeSetupPage';
+import { PracticeLivePage } from './pages/PracticeLivePage';
 import { ResetPasswordPage } from './pages/ResetPasswordPage';
 import { readToken } from './lib/token';
 import { useMe } from './lib/auth';
@@ -46,6 +48,22 @@ export const routes: RouteObject[] = [
     element: (
       <RequireAuth>
         <HomePage />
+      </RequireAuth>
+    ),
+  },
+  {
+    path: '/practice/setup',
+    element: (
+      <RequireAuth>
+        <PracticeSetupPage />
+      </RequireAuth>
+    ),
+  },
+  {
+    path: '/practice/live',
+    element: (
+      <RequireAuth>
+        <PracticeLivePage />
       </RequireAuth>
     ),
   },
