@@ -2,6 +2,21 @@ import { useState } from 'react';
 import { getApiError } from '../../lib/api';
 import { useGradeAnswer, type GradeFeedback } from '../../lib/ai';
 
+interface PresentationReview {
+  transcript: string;
+  duration: string;
+  wordsPerMinute: number;
+  fillers: number;
+  eyeContact: number;
+  posture: number;
+  confidence: number | null;
+  fileName: string;
+}
+
+interface GradePanelProps {
+  presentationReview?: PresentationReview;
+}
+
 const SKILLS = [
   'Giao tiếp',
   'Thuyết trình',
@@ -28,13 +43,20 @@ function scoreTone(score: number): string {
  * Practice screen: send one learner answer through POST /v1/ai/feedback and show
  * the structured grade returned by the AnswerGrader agent.
  */
-export const GradePanel: React.FC = () => {
+export const GradePanel: React.FC<GradePanelProps> = ({ presentationReview }) => {
   const grade = useGradeAnswer();
 
-  const [skill, setSkill] = useState(SKILLS[0]);
-  const [question, setQuestion] = useState('');
-  const [answer, setAnswer] = useState('');
-  const [context, setContext] = useState('');
+  const [skill, setSkill] = useState(presentationReview ? 'Thuyết trình' : SKILLS[0]);
+  const [question, setQuestion] = useState(presentationReview ? `Hãy đánh giá phần thuyết trình “${presentationReview.fileName}” về nội dung, cách diễn đạt và khả năng trình bày.` : '');
+  const [answer, setAnswer] = useState(presentationReview?.transcript ?? '');
+  const [context, setContext] = useState(presentationReview ? [
+    `Thời lượng: ${presentationReview.duration}.`,
+    `Tốc độ nói: ${presentationReview.wordsPerMinute} từ/phút.`,
+    `Từ đệm nhận diện được: ${presentationReview.fillers}.`,
+    `Eye contact ước lượng: ${presentationReview.eyeContact}%.`,
+    `Tư thế ước lượng: ${presentationReview.posture}/100.`,
+    `Điểm thể hiện tự tin ước lượng: ${presentationReview.confidence ?? 'chưa đủ dữ liệu'}.`,
+  ].join(' ') : '');
   const [feedback, setFeedback] = useState<GradeFeedback | null>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -78,6 +100,13 @@ export const GradePanel: React.FC = () => {
           Dán câu hỏi tình huống và câu trả lời của bạn để nhận điểm kèm góp ý.
         </p>
       </div>
+
+      {presentationReview && (
+        <div className="mx-5 mt-4 rounded-xl border border-teal-100 bg-teal-50 px-3.5 py-3 text-xs leading-relaxed text-teal-900">
+          Đã điền bản chép lời và chỉ số từ phiên luyện tập. Hãy xem lại nội dung rồi nhấn <strong>Chấm điểm</strong> để gửi yêu cầu đến AI.
+          {!presentationReview.transcript && ' Trình duyệt không tạo được bản chép lời; hãy nhập nội dung bạn đã trình bày vào ô bên dưới.'}
+        </div>
+      )}
 
       <form onSubmit={submit} className="p-5 space-y-4" noValidate>
         <div>

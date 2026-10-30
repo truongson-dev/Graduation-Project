@@ -1,15 +1,28 @@
 import { useState } from 'react';
-import { useNavigate } from 'react-router';
+import { useLocation, useNavigate } from 'react-router';
 import { useLogout, useMe } from '../lib/auth';
 import { ChatPanel } from '../components/Coach/ChatPanel';
 import { GradePanel } from '../components/Coach/GradePanel';
 
 export const CoachPage: React.FC = () => {
+  const location = useLocation();
   const navigate = useNavigate();
   const me = useMe();
   const logout = useLogout();
   const user = me.data;
-  const [panel, setPanel] = useState<'chat' | 'grade'>('chat');
+  const presentationReview = (location.state as {
+    presentationReview?: {
+      transcript: string;
+      duration: string;
+      wordsPerMinute: number;
+      fillers: number;
+      eyeContact: number;
+      posture: number;
+      confidence: number | null;
+      fileName: string;
+    };
+  } | null)?.presentationReview;
+  const [panel, setPanel] = useState<'chat' | 'grade'>(presentationReview ? 'grade' : 'chat');
 
   const handleLogout = () => {
     logout.mutate(undefined, {
@@ -85,7 +98,7 @@ export const CoachPage: React.FC = () => {
           </button>
         </div>
 
-        {panel === 'chat' ? <ChatPanel /> : <GradePanel />}
+        {panel === 'chat' ? <ChatPanel /> : <GradePanel presentationReview={presentationReview} />}
       </main>
 
       <footer className="w-full py-3 text-center text-xs text-slate-400">
