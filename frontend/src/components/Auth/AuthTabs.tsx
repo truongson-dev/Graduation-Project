@@ -11,7 +11,7 @@ export const AuthTabs: React.FC<AuthTabsProps> = ({ currentMode, onChangeMode })
     <div
       role="tablist"
       aria-label="Chuyển chế độ đăng nhập hoặc đăng ký"
-      className="flex p-1 bg-slate-100/90 rounded-2xl mb-5 max-w-sm mx-auto w-full border border-slate-200/60 shadow-inner"
+      className="auth-tabs flex p-1 rounded-2xl mb-5 max-w-sm mx-auto w-full"
     >
       <button
         role="tab"
@@ -20,10 +20,10 @@ export const AuthTabs: React.FC<AuthTabsProps> = ({ currentMode, onChangeMode })
         aria-controls="auth-form"
         type="button"
         onClick={() => onChangeMode('login')}
-        className={`flex-1 py-2.5 text-sm rounded-xl transition-all duration-200 flex items-center justify-center gap-1.5 cursor-pointer ${
+        className={`auth-tab flex-1 py-2.5 text-sm rounded-xl transition-all duration-200 flex items-center justify-center gap-1.5 cursor-pointer ${
           currentMode === 'login'
-            ? 'bg-white text-[#002045] font-bold shadow-sm scale-[1.01]'
-            : 'text-slate-500 hover:text-slate-900 font-medium'
+            ? 'is-active text-[#002045] font-bold scale-[1.01]'
+            : 'text-slate-600 hover:text-[#002045] font-medium'
         }`}
       >
         <span className="material-symbols-outlined text-[18px]">login</span>
@@ -37,10 +37,10 @@ export const AuthTabs: React.FC<AuthTabsProps> = ({ currentMode, onChangeMode })
         aria-controls="auth-form"
         type="button"
         onClick={() => onChangeMode('register')}
-        className={`flex-1 py-2.5 text-sm rounded-xl transition-all duration-200 flex items-center justify-center gap-1.5 cursor-pointer ${
+        className={`auth-tab flex-1 py-2.5 text-sm rounded-xl transition-all duration-200 flex items-center justify-center gap-1.5 cursor-pointer ${
           currentMode === 'register'
-            ? 'bg-white text-[#002045] font-bold shadow-sm scale-[1.01]'
-            : 'text-slate-500 hover:text-slate-900 font-medium'
+            ? 'is-active text-[#002045] font-bold scale-[1.01]'
+            : 'text-slate-600 hover:text-[#002045] font-medium'
         }`}
       >
         <span className="material-symbols-outlined text-[18px]">person_add</span>

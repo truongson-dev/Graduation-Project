@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Api\V1\Auth;
 
+use App\Auth\AuthTokenService;
 use App\Http\Controllers\Controller;
 use App\Models\User;
 use Illuminate\Http\Request;
@@ -15,7 +16,7 @@ class LogoutController extends Controller
     /**
      * Revoke the current access token or invalidate the current session.
      */
-    public function __invoke(Request $request): Response
+    public function __invoke(Request $request, AuthTokenService $tokens): Response
     {
         $user = $request->user();
 
@@ -25,6 +26,7 @@ class LogoutController extends Controller
         $accessToken = $user->currentAccessToken();
 
         if ($accessToken instanceof PersonalAccessToken) {
+            $tokens->revokeForAccessToken($user, $accessToken);
             $accessToken->delete();
         }
 

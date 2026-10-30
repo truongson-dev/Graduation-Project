@@ -2,6 +2,7 @@
 
 use App\Models\User;
 use Database\Seeders\RoleSeeder;
+use Illuminate\Support\Facades\Cache;
 
 beforeEach(function () {
     $this->seed(RoleSeeder::class);
@@ -35,7 +36,7 @@ it('returns a bearer token to a mobile device', function () {
     ]);
 
     $response->assertOk()
-        ->assertJsonStructure(['data' => ['user', 'token', 'token_type']])
+        ->assertJsonStructure(['data' => ['user', 'token', 'refresh_token', 'token_type', 'expires_in']])
         ->assertJsonPath('data.token_type', 'Bearer');
 
     expect($response->json('data.token'))->toBeString()->not->toBeEmpty();
@@ -60,10 +61,10 @@ it('rejects invalid credentials without revealing which field is wrong', functio
     $this->assertGuest();
 });
 
-it('throttles repeated login attempts', function () {
+it('locks the account for fifteen minutes after five consecutive failures', function () {
     User::factory()->create(['email' => 'a@example.com']);
 
-    foreach (range(1, 5) as $attempt) {
+    foreach (range(1, 4) as $attempt) {
         $this->postJson('/api/v1/auth/login', [
             'email' => 'a@example.com',
             'password' => 'wrong-password',
@@ -75,7 +76,22 @@ it('throttles repeated login attempts', function () {
         'password' => 'wrong-password',
     ]);
 
-    $response->assertTooManyRequests();
+    $response->assertStatus(423)
+        ->assertJsonPath('message', 'Tài khoản đã bị khóa tạm thời. Vui lòng thử lại sau 15 phút.')
+        ->assertJsonPath('retry_after_seconds', 900);
 
-    expect($response->headers->get('Retry-After'))->not->toBeNull();
+    expect($response->headers->get('Retry-After'))->toBe('900');
+
+    $this->postJson('/api/v1/auth/login', [
+        'email' => 'a@example.com',
+        'password' => 'password',
+    ])->assertStatus(423);
+
+    Cache::forget('auth:login:locked:'.hash('sha256', 'a@example.com'));
+
+    $this->postJson('/api/v1/auth/login', [
+        'email' => 'a@example.com',
+        'password' => 'password',
+        'device_name' => 'test-device',
+    ])->assertOk();
 });

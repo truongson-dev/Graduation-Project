@@ -50,7 +50,7 @@ return [
     |
     */
 
-    'expiration' => (int) env('SANCTUM_EXPIRATION', 43200),
+    'expiration' => (int) env('SANCTUM_EXPIRATION', 15),
 
     /*
     |--------------------------------------------------------------------------

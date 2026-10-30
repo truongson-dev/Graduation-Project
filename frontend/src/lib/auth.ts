@@ -1,7 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import type { components } from '../api/schema';
 import { api, endpoints, getApiError } from './api';
-import { clearToken, readToken, saveToken } from './token';
+import { clearToken, readToken, saveTokenPair } from './token';
 
 export type AuthUser = components['schemas']['UserResource'];
 export type ForgotPasswordInput = components['schemas']['ForgotPasswordRequest'];
@@ -9,8 +9,15 @@ export type ResetPasswordInput = components['schemas']['ResetPasswordRequest'];
 
 const ME_QUERY_KEY = ['auth', 'me'] as const;
 
+export interface TokenPair {
+  token: string;
+  refresh_token: string;
+  token_type: 'Bearer';
+  expires_in: number;
+}
+
 interface AuthEnvelope {
-  data: { user: AuthUser; token?: string };
+  data: { user: AuthUser } & Partial<TokenPair>;
 }
 
 export interface LoginInput {
@@ -46,11 +53,11 @@ export function useMe() {
 function storeSession(response: { data: AuthEnvelope }, remember: boolean): AuthUser {
   const payload = response.data.data;
 
-  if (!payload.token) {
-    throw new Error('Máy chủ không trả về token đăng nhập.');
+  if (!payload.token || !payload.refresh_token) {
+    throw new Error('Máy chủ không trả về đủ thông tin phiên đăng nhập.');
   }
 
-  saveToken(payload.token, remember);
+  saveTokenPair(payload.token, payload.refresh_token, remember);
 
   return payload.user;
 }
@@ -135,6 +142,7 @@ export function useResetPassword() {
       return response.data.message;
     },
     onSuccess: () => {
+      clearToken();
       queryClient.clear();
     },
   });
@@ -147,13 +155,31 @@ export function useResetPassword() {
 export function consumeGoogleCallbackToken(): string | null {
   const params = new URLSearchParams(window.location.hash.replace(/^#/, ''));
   const token = params.get('token');
+  const refreshToken = params.get('refresh_token');
 
-  if (!token) return null;
+  if (!token || !refreshToken) {
+    if (params.has('token') || params.has('error') || params.has('message')) {
+      window.history.replaceState({}, document.title, window.location.pathname);
+    }
+    return null;
+  }
 
-  saveToken(token, true);
+  saveTokenPair(token, refreshToken, true);
   window.history.replaceState({}, document.title, window.location.pathname);
 
   return token;
+}
+
+export function consumeGoogleCallbackError(): string | null {
+  const params = new URLSearchParams(window.location.hash.replace(/^#/, ''));
+  const error = params.get('error');
+  const message = params.get('message');
+
+  if (!error && !message) return null;
+
+  window.history.replaceState({}, document.title, window.location.pathname);
+
+  return message || 'Không thể xác thực với Google. Vui lòng thử lại.';
 }
 
 export { getApiError };

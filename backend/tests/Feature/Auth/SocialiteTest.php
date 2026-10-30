@@ -46,7 +46,7 @@ it('creates an account from the Google callback for a mobile client', function (
     $response = $this->getJson('/api/v1/auth/social/google/callback?code=fake-code&state='.$state);
 
     $response->assertOk()
-        ->assertJsonStructure(['data' => ['user', 'token', 'token_type']])
+        ->assertJsonStructure(['data' => ['user', 'token', 'refresh_token', 'token_type', 'expires_in']])
         ->assertJsonPath('data.user.email', 'g@example.com')
         ->assertJsonPath('data.user.roles', ['student'])
         ->assertJsonPath('data.token_type', 'Bearer');
@@ -116,6 +116,7 @@ it('redirects the browser to the frontend with a token fragment', function () {
     expect($response->headers->get('Location'))
         ->toStartWith(config('app.frontend_url').'/auth/callback#')
         ->toContain('token=')
+        ->toContain('refresh_token=')
         ->toContain('token_type=Bearer');
 });
 
@@ -135,6 +136,18 @@ it('handles a denied Google consent', function () {
     $this->getJson('/api/v1/auth/social/google/callback?error=access_denied&state='.$state)
         ->assertUnprocessable()
         ->assertJsonValidationErrors('state');
+});
+
+it('returns a cancelled Google login to the frontend with a readable message', function () {
+    Socialite::fake('google');
+
+    $state = $this->getJson('/api/v1/auth/social/google/redirect')->json('data.state');
+    $response = $this->get('/api/v1/auth/social/google/callback?error=access_denied&state='.$state);
+
+    $response->assertRedirect();
+    expect($response->headers->get('Location'))
+        ->toContain(config('app.frontend_url').'/auth/callback#error=cancelled')
+        ->toContain('message=');
 });
 
 it('refuses to link an account when Google did not verify the email', function () {

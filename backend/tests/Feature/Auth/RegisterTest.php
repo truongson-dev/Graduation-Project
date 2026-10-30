@@ -16,8 +16,8 @@ it('registers a user through the spa and starts a session', function () {
         ->postJson('/api/v1/auth/register', [
             'name' => 'Nguyen Van A',
             'email' => 'A@Example.com',
-            'password' => 'Password123',
-            'password_confirmation' => 'Password123',
+            'password' => 'Password123!',
+            'password_confirmation' => 'Password123!',
         ]);
 
     $response->assertCreated()
@@ -40,8 +40,8 @@ it('registers a mobile device and returns a bearer token', function () {
     $response = $this->postJson('/api/v1/auth/register', [
         'name' => 'Nguyen Van B',
         'email' => 'b@example.com',
-        'password' => 'Password123',
-        'password_confirmation' => 'Password123',
+        'password' => 'Password123!',
+        'password_confirmation' => 'Password123!',
         'device_name' => 'pixel-8',
     ]);
 
@@ -61,8 +61,8 @@ it('rejects a duplicate email regardless of letter case', function () {
     $this->postJson('/api/v1/auth/register', [
         'name' => 'Nguyen Van C',
         'email' => 'A@Example.com',
-        'password' => 'Password123',
-        'password_confirmation' => 'Password123',
+        'password' => 'Password123!',
+        'password_confirmation' => 'Password123!',
     ])->assertUnprocessable()
         ->assertJsonValidationErrors('email');
 
@@ -73,10 +73,22 @@ it('rejects a password confirmation that does not match', function () {
     $this->postJson('/api/v1/auth/register', [
         'name' => 'Nguyen Van D',
         'email' => 'd@example.com',
-        'password' => 'Password123',
-        'password_confirmation' => 'Password1234',
+        'password' => 'Password123!',
+        'password_confirmation' => 'Password1234!',
     ])->assertUnprocessable()
         ->assertJsonValidationErrors('password');
+});
+
+it('requires a special character in a new password', function () {
+    $this->postJson('/api/v1/auth/register', [
+        'name' => 'Nguyen Van F',
+        'email' => 'f@example.com',
+        'password' => 'Password123',
+        'password_confirmation' => 'Password123',
+    ])->assertUnprocessable()
+        ->assertJsonValidationErrors('password');
+
+    $this->assertDatabaseCount('users', 0);
 });
 
 it('rejects a password longer than the bcrypt limit', function () {

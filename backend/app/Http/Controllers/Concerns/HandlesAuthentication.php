@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Concerns;
 
+use App\Auth\AuthTokenService;
 use App\Http\Resources\UserResource;
 use App\Models\User;
 use Illuminate\Http\JsonResponse;
@@ -29,8 +30,7 @@ trait HandlesAuthentication
             return response()->json([
                 'data' => [
                     'user' => UserResource::make($user),
-                    'token' => $user->createToken($deviceName ?: 'api')->plainTextToken,
-                    'token_type' => 'Bearer',
+                    ...app(AuthTokenService::class)->issue($user, $deviceName ?: 'api'),
                 ],
             ], $status);
         }

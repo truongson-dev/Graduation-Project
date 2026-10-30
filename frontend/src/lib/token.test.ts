@@ -1,5 +1,5 @@
 import { describe, expect, it, beforeEach } from 'vitest';
-import { clearToken, readToken, saveToken, wasRemembered } from './token';
+import { clearToken, readRefreshToken, readToken, saveToken, saveTokenPair, wasRemembered } from './token';
 
 describe('token storage', () => {
   beforeEach(() => {
@@ -31,5 +31,16 @@ describe('token storage', () => {
 
     expect(readToken()).toBeNull();
     expect(wasRemembered()).toBe(false);
+  });
+
+  it('stores and clears the refresh token alongside the access token', () => {
+    saveTokenPair('access', 'refresh', false);
+
+    expect(readRefreshToken()).toBe('refresh');
+    expect(sessionStorage.getItem('softskill_refresh_token')).toBe('refresh');
+    expect(localStorage.getItem('softskill_refresh_token')).toBeNull();
+
+    clearToken();
+    expect(readRefreshToken()).toBeNull();
   });
 });

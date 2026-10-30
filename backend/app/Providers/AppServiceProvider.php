@@ -65,8 +65,8 @@ class AppServiceProvider extends ServiceProvider
         RateLimiter::for('register', fn (Request $request): Limit => Limit::perMinute(10)
             ->by($request->ip() ?? 'unknown'));
 
-        RateLimiter::for('login', fn (Request $request): Limit => Limit::perMinute(5)
-            ->by($this->emailRateLimitKey($request)));
+        RateLimiter::for('login', fn (Request $request): Limit => Limit::perMinute(30)
+            ->by($request->ip() ?? 'unknown'));
 
         RateLimiter::for('forgot-password', fn (Request $request): Limit => Limit::perMinute(3)
             ->by($this->emailRateLimitKey($request)));
@@ -97,7 +97,11 @@ class AppServiceProvider extends ServiceProvider
      */
     private function configurePasswordRules(): void
     {
-        Password::defaults(fn (): Password => Password::min(8)->max(72)->letters()->mixedCase()->numbers());
+        Password::defaults(fn (): Password => Password::min(8)->max(72)
+            ->letters()
+            ->mixedCase()
+            ->numbers()
+            ->rules('regex:/[\p{S}\p{P}]/u'));
     }
 
     /**

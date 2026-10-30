@@ -3,8 +3,8 @@ import { Link, useSearchParams } from 'react-router';
 import { InputField } from '../components/Auth/InputField';
 import { getApiError } from '../lib/api';
 import { useResetPassword } from '../lib/auth';
+import { PASSWORD_REQUIREMENTS, passwordSchema } from '../lib/password';
 
-const MIN_PASSWORD_LENGTH = 8;
 const MAX_PASSWORD_LENGTH = 72;
 
 /**
@@ -28,8 +28,9 @@ export const ResetPasswordPage: React.FC = () => {
     event.preventDefault();
     setError(null);
 
-    if (password.length < MIN_PASSWORD_LENGTH) {
-      setError(`Mật khẩu phải có tối thiểu ${MIN_PASSWORD_LENGTH} ký tự.`);
+    const passwordResult = passwordSchema.safeParse(password);
+    if (!passwordResult.success) {
+      setError(passwordResult.error.issues[0]?.message ?? 'Mật khẩu chưa đáp ứng yêu cầu.');
       return;
     }
 
@@ -117,10 +118,11 @@ export const ResetPasswordPage: React.FC = () => {
               label="Mật khẩu mới"
               type="password"
               icon="lock"
-              placeholder={`Tối thiểu ${MIN_PASSWORD_LENGTH} ký tự`}
+              placeholder="Nhập mật khẩu mới"
               value={password}
               onChange={(event) => setPassword(event.target.value.slice(0, MAX_PASSWORD_LENGTH))}
               autoComplete="new-password"
+              helperText={PASSWORD_REQUIREMENTS}
             />
 
             <InputField

@@ -66,12 +66,12 @@ it('resets the password and revokes existing access tokens', function () {
     $this->postJson('/api/v1/auth/reset-password', [
         'token' => $token,
         'email' => 'Reset@Example.com',
-        'password' => 'NewPassword1',
-        'password_confirmation' => 'NewPassword1',
+        'password' => 'NewPassword1!',
+        'password_confirmation' => 'NewPassword1!',
     ])->assertOk()
         ->assertJsonPath('message', 'Mật khẩu đã được cập nhật. Vui lòng đăng nhập lại.');
 
-    expect(Hash::check('NewPassword1', $user->fresh()->password))->toBeTrue()
+    expect(Hash::check('NewPassword1!', $user->fresh()->password))->toBeTrue()
         ->and($user->tokens()->count())->toBe(0)
         ->and(Password::broker()->tokenExists($user, $token))->toBeFalse();
 });
@@ -82,8 +82,8 @@ it('rejects an invalid reset token with a neutral message', function () {
     $this->postJson('/api/v1/auth/reset-password', [
         'token' => 'invalid-token',
         'email' => 'reset@example.com',
-        'password' => 'NewPassword1',
-        'password_confirmation' => 'NewPassword1',
+        'password' => 'NewPassword1!',
+        'password_confirmation' => 'NewPassword1!',
     ])->assertUnprocessable()
         ->assertJsonValidationErrors('email');
 });
@@ -92,8 +92,8 @@ it('validates the new password confirmation', function () {
     $this->postJson('/api/v1/auth/reset-password', [
         'token' => 'irrelevant',
         'email' => 'reset@example.com',
-        'password' => 'NewPassword1',
-        'password_confirmation' => 'NewPassword2',
+        'password' => 'NewPassword1!',
+        'password_confirmation' => 'NewPassword2!',
     ])->assertUnprocessable()
         ->assertJsonValidationErrors('password');
 });

@@ -2,8 +2,11 @@ import type { ReactNode } from 'react';
 import { createBrowserRouter, Navigate, useLocation, type RouteObject } from 'react-router';
 import { AuthCallbackPage } from './pages/AuthCallbackPage';
 import { AuthPage } from './pages/AuthPage';
-import { CoachPage } from './pages/CoachPage';
+import { AchievementsPage } from './pages/AchievementsPage';
+import { CommunityPage } from './pages/CommunityPage';
 import { HomePage } from './pages/HomePage';
+import { LearningPathPage } from './pages/LearningPathPage';
+import { PresentationReviewPage } from './pages/PresentationReviewPage';
 import { PracticeSetupPage } from './pages/PracticeSetupPage';
 import { PracticeLivePage } from './pages/PracticeLivePage';
 import { ResetPasswordPage } from './pages/ResetPasswordPage';
@@ -52,6 +55,14 @@ export const routes: RouteObject[] = [
     ),
   },
   {
+    path: '/learning-path',
+    element: (
+      <RequireAuth>
+        <LearningPathPage />
+      </RequireAuth>
+    ),
+  },
+  {
     path: '/practice/setup',
     element: (
       <RequireAuth>
@@ -68,13 +79,30 @@ export const routes: RouteObject[] = [
     ),
   },
   {
-    path: '/coach',
+    path: '/achievements',
     element: (
       <RequireAuth>
-        <CoachPage />
+        <AchievementsPage />
       </RequireAuth>
     ),
   },
+  {
+    path: '/community',
+    element: (
+      <RequireAuth>
+        <CommunityPage />
+      </RequireAuth>
+    ),
+  },
+  {
+    path: '/practice/review',
+    element: (
+      <RequireAuth>
+        <PresentationReviewPage />
+      </RequireAuth>
+    ),
+  },
+  { path: '/coach', element: <Navigate to="/home" replace /> },
   { path: '*', element: <Navigate to="/" replace /> },
 ];
 

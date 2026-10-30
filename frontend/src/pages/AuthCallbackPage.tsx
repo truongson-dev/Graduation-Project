@@ -1,12 +1,18 @@
 import { useEffect, useState } from 'react';
 import { Link, useNavigate } from 'react-router';
-import { consumeGoogleCallbackToken } from '../lib/auth';
+import { consumeGoogleCallbackError, consumeGoogleCallbackToken } from '../lib/auth';
 
 export const AuthCallbackPage: React.FC = () => {
   const navigate = useNavigate();
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
+    const callbackError = consumeGoogleCallbackError();
+    if (callbackError) {
+      setError(callbackError);
+      return;
+    }
+
     const token = consumeGoogleCallbackToken();
 
     if (!token) {

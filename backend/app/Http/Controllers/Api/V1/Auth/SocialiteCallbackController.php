@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Api\V1\Auth;
 
+use App\Auth\AuthTokenService;
 use App\Http\Controllers\Controller;
 use App\Http\Resources\UserResource;
 use App\Models\User;
@@ -26,15 +27,15 @@ class SocialiteCallbackController extends Controller
         $intent = OAuthState::pull($request->query('state'), $request);
 
         if ($intent === null) {
-            throw ValidationException::withMessages([
-                'state' => 'Phiên đăng nhập Google không hợp lệ hoặc đã hết hạn.',
-            ]);
+            return $this->failedAuth(
+                $request,
+                'invalid_state',
+                'Phiên đăng nhập Google không hợp lệ hoặc đã hết hạn.',
+            );
         }
 
         if ($request->query('error') !== null) {
-            throw ValidationException::withMessages([
-                'state' => 'Bạn đã huỷ đăng nhập Google.',
-            ]);
+            return $this->failedAuth($request, 'cancelled', 'Bạn đã huỷ đăng nhập Google.', $intent);
         }
 
         try {
@@ -42,33 +43,50 @@ class SocialiteCallbackController extends Controller
             $provider = Socialite::driver('google');
             $googleUser = $provider->stateless()->user();
         } catch (GuzzleException|InvalidStateException) {
-            throw ValidationException::withMessages([
-                'state' => 'Không thể xác thực với Google.',
-            ]);
+            return $this->failedAuth($request, 'provider_error', 'Không thể xác thực với Google.', $intent);
         }
 
         if (! $googleUser instanceof SocialiteUser) {
-            throw ValidationException::withMessages([
-                'state' => 'Không thể xác thực với Google.',
-            ]);
+            return $this->failedAuth($request, 'provider_error', 'Không thể xác thực với Google.', $intent);
         }
 
         $email = $googleUser->getEmail();
         $googleId = $googleUser->getId();
 
         if (blank($googleId)) {
-            throw ValidationException::withMessages([
-                'state' => 'Tài khoản Google không cung cấp đủ thông tin.',
-            ]);
+            return $this->failedAuth(
+                $request,
+                'provider_error',
+                'Tài khoản Google không cung cấp đủ thông tin.',
+                $intent,
+            );
         }
 
         if (blank($email)) {
-            throw ValidationException::withMessages([
-                'email' => 'Tài khoản Google không cung cấp email.',
-            ]);
+            return $this->failedAuth(
+                $request,
+                'provider_error',
+                'Tài khoản Google không cung cấp email.',
+                $intent,
+            );
         }
 
-        $user = $this->resolveUser($googleUser, $googleId, Str::lower(trim($email)));
+        try {
+            $user = $this->resolveUser($googleUser, $googleId, Str::lower(trim($email)));
+        } catch (ValidationException $exception) {
+            if ($request->expectsJson() || filled($intent['device_name'])) {
+                throw $exception;
+            }
+
+            $message = collect($exception->errors())->flatten()->first();
+
+            return $this->failedAuth(
+                $request,
+                'provider_error',
+                is_string($message) ? $message : 'Không thể xác thực với Google.',
+                $intent,
+            );
+        }
 
         return $this->oauthResponse($request, $user, $intent['device_name']);
     }
@@ -161,35 +179,63 @@ class SocialiteCallbackController extends Controller
     {
         $user->loadMissing('roles');
 
-        $token = $user->createToken($deviceName ?: 'google')->plainTextToken;
+        $pair = app(AuthTokenService::class)->issue($user, $deviceName ?: 'google');
 
         if ($request->expectsJson() || filled($deviceName)) {
-            return $this->tokenResponse($user, $token);
+            return $this->tokenResponse($user, $pair);
         }
 
         $frontend = rtrim((string) config('app.frontend_url'), '/');
 
         if ($frontend === '') {
-            return $this->tokenResponse($user, $token);
+            return $this->tokenResponse($user, $pair);
         }
 
         return redirect()->away($frontend.'/auth/callback#'.http_build_query([
-            'token' => $token,
-            'token_type' => 'Bearer',
+            'token' => $pair['token'],
+            'refresh_token' => $pair['refresh_token'],
+            'expires_in' => $pair['expires_in'],
+            'token_type' => $pair['token_type'],
         ]));
     }
 
     /**
      * Build the JSON payload returned to token clients.
+     *
+     * @param  array{token: string, refresh_token: string, token_type: string, expires_in: int}  $pair
      */
-    private function tokenResponse(User $user, string $token): JsonResponse
+    private function tokenResponse(User $user, array $pair): JsonResponse
     {
         return response()->json([
             'data' => [
                 'user' => UserResource::make($user),
-                'token' => $token,
-                'token_type' => 'Bearer',
+                ...$pair,
             ],
         ]);
+    }
+
+    /**
+     * Return a browser callback error to the frontend or preserve the JSON API error.
+     *
+     * @param  array{device_name: string|null}|null  $intent
+     */
+    private function failedAuth(
+        Request $request,
+        string $code,
+        string $message,
+        ?array $intent = null,
+    ): JsonResponse|RedirectResponse {
+        if (! $request->expectsJson() && ! filled($intent['device_name'] ?? null)) {
+            $frontend = rtrim((string) config('app.frontend_url'), '/');
+
+            if ($frontend !== '') {
+                return redirect()->away($frontend.'/auth/callback#'.http_build_query([
+                    'error' => $code,
+                    'message' => $message,
+                ]));
+            }
+        }
+
+        throw ValidationException::withMessages(['state' => $message]);
     }
 }

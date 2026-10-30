@@ -9,6 +9,7 @@ use App\Http\Controllers\Api\V1\Auth\LoginController;
 use App\Http\Controllers\Api\V1\Auth\LogoutController;
 use App\Http\Controllers\Api\V1\Auth\MeController;
 use App\Http\Controllers\Api\V1\Auth\RegisterController;
+use App\Http\Controllers\Api\V1\Auth\RefreshTokenController;
 use App\Http\Controllers\Api\V1\Auth\ResetPasswordController;
 use App\Http\Controllers\Api\V1\Auth\SendEmailVerificationController;
 use App\Http\Controllers\Api\V1\Auth\SocialiteCallbackController;
@@ -31,6 +32,10 @@ Route::prefix('v1/auth')->group(function (): void {
     Route::post('/login', LoginController::class)
         ->middleware('throttle:login')
         ->name('api.v1.auth.login');
+
+    Route::post('/refresh', RefreshTokenController::class)
+        ->middleware('throttle:social')
+        ->name('api.v1.auth.refresh');
 
     Route::post('/forgot-password', ForgotPasswordController::class)
         ->middleware('throttle:forgot-password')

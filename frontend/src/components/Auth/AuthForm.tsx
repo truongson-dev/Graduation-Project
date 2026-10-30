@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
@@ -10,6 +10,7 @@ import { InputField } from './InputField';
 import { api, endpoints, getApiError } from '../../lib/api';
 import { useLogin, useRegister } from '../../lib/auth';
 import { wasRemembered } from '../../lib/token';
+import { PASSWORD_REQUIREMENTS, passwordSchema } from '../../lib/password';
 
 const loginSchema = z.object({
   email: z.email('Email không đúng định dạng'),
@@ -21,7 +22,7 @@ const registerSchema = z
   .object({
     fullName: z.string().trim().min(1, 'Vui lòng nhập họ và tên của bạn'),
     email: z.email('Email không đúng định dạng'),
-    password: z.string().min(8, 'Mật khẩu phải có tối thiểu 8 ký tự'),
+    password: passwordSchema,
     passwordConfirmation: z.string().min(1, 'Vui lòng nhập lại mật khẩu'),
     agreeTerms: z
       .boolean()
@@ -45,9 +46,28 @@ export const AuthForm: React.FC<AuthFormProps> = ({ onForgotPassword }) => {
   const [generalError, setGeneralError] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
   const [googleLoading, setGoogleLoading] = useState(false);
+  const [loginLockoutUntil, setLoginLockoutUntil] = useState<number | null>(null);
+  const [loginLockoutSeconds, setLoginLockoutSeconds] = useState(0);
 
   const login = useLogin();
   const register = useRegister();
+
+  useEffect(() => {
+    if (loginLockoutUntil === null) {
+      setLoginLockoutSeconds(0);
+      return;
+    }
+
+    const updateCountdown = () => {
+      const remaining = Math.max(0, Math.ceil((loginLockoutUntil - Date.now()) / 1000));
+      setLoginLockoutSeconds(remaining);
+      if (remaining === 0) setLoginLockoutUntil(null);
+    };
+
+    updateCountdown();
+    const timer = window.setInterval(updateCountdown, 1000);
+    return () => window.clearInterval(timer);
+  }, [loginLockoutUntil]);
 
   const loginForm = useForm<LoginValues>({
     resolver: zodResolver(loginSchema),
@@ -83,9 +103,14 @@ export const AuthForm: React.FC<AuthFormProps> = ({ onForgotPassword }) => {
         password: values.password,
         remember: values.rememberMe,
       });
+      setLoginLockoutUntil(null);
       navigate('/home', { replace: true });
     } catch (error) {
       const info = getApiError(error);
+
+      if (info.status === 423) {
+        setLoginLockoutUntil(Date.now() + (info.retryAfterSeconds ?? 900) * 1000);
+      }
 
       if (info.fields.email) {
         loginForm.setError('email', { message: info.fields.email });
@@ -164,6 +189,13 @@ export const AuthForm: React.FC<AuthFormProps> = ({ onForgotPassword }) => {
         </div>
       )}
 
+      {isLogin && loginLockoutSeconds > 0 && (
+        <p role="status" className="-mt-2 mb-4 text-xs font-medium text-amber-700">
+          Có thể thử đăng nhập lại sau {Math.floor(loginLockoutSeconds / 60)} phút{' '}
+          {String(loginLockoutSeconds % 60).padStart(2, '0')} giây.
+        </p>
+      )}
+
       {successMessage && (
         <div role="status" className="mb-4 flex items-center gap-2.5 rounded-xl border border-emerald-200 bg-emerald-50 p-3.5 text-sm text-emerald-800">
           <span className="material-symbols-outlined text-[20px] text-emerald-600">check_circle</span>
@@ -192,8 +224,8 @@ export const AuthForm: React.FC<AuthFormProps> = ({ onForgotPassword }) => {
       />
 
       <div className="relative flex items-center justify-center mb-5">
-        <div className="border-t border-slate-200 w-full" />
-        <span className="bg-white px-3 text-[11px] uppercase tracking-wider text-slate-400 font-semibold absolute">
+        <div className="auth-divider-line w-full" />
+        <span className="auth-divider-label px-3 text-[11px] uppercase tracking-wider font-semibold absolute">
           hoặc với tài khoản
         </span>
       </div>
@@ -219,7 +251,7 @@ export const AuthForm: React.FC<AuthFormProps> = ({ onForgotPassword }) => {
             label="Mật khẩu"
             type="password"
             icon="lock"
-            placeholder="Tối thiểu 8 ký tự"
+            placeholder="Nhập mật khẩu"
             value={loginValues.password}
             onChange={(event) =>
               loginForm.setValue('password', event.target.value, { shouldValidate: true })
@@ -257,8 +289,8 @@ export const AuthForm: React.FC<AuthFormProps> = ({ onForgotPassword }) => {
           <div className="pt-2">
             <button
               type="submit"
-              disabled={isLoading}
-              className="w-full py-3 px-4 rounded-xl bg-[#002045] hover:bg-[#00132b] text-white font-bold text-sm tracking-wide shadow-md hover:shadow-lg transition-all duration-200 flex items-center justify-center gap-2 cursor-pointer disabled:opacity-70 disabled:cursor-not-allowed"
+              disabled={isLoading || loginLockoutSeconds > 0}
+              className="w-full py-3 px-4 rounded-xl bg-blue-700 hover:bg-blue-800 text-white font-bold text-sm tracking-wide shadow-md shadow-blue-700/20 hover:shadow-lg transition-all duration-200 flex items-center justify-center gap-2 cursor-pointer disabled:opacity-70 disabled:cursor-not-allowed"
             >
               {isLoading ? (
                 <span className="inline-flex items-center gap-2">
@@ -317,6 +349,7 @@ export const AuthForm: React.FC<AuthFormProps> = ({ onForgotPassword }) => {
               registerForm.setValue('password', event.target.value, { shouldValidate: true })
             }
             error={registerForm.formState.errors.password?.message}
+            helperText={PASSWORD_REQUIREMENTS}
             autoComplete="new-password"
           />
 
@@ -353,8 +386,7 @@ export const AuthForm: React.FC<AuthFormProps> = ({ onForgotPassword }) => {
                 htmlFor="terms-check"
                 className="text-xs text-slate-500 leading-snug cursor-pointer select-none"
               >
-                Tôi đồng ý với Điều khoản dịch vụ và Chính sách bảo mật học tập của
-                SkillBridge.
+                Tôi đồng ý với Điều khoản dịch vụ và Chính sách bảo mật học tập.
               </label>
             </div>
             {registerForm.formState.errors.agreeTerms?.message && (
@@ -368,7 +400,7 @@ export const AuthForm: React.FC<AuthFormProps> = ({ onForgotPassword }) => {
             <button
               type="submit"
               disabled={isLoading}
-              className="w-full py-3 px-4 rounded-xl bg-[#002045] hover:bg-[#00132b] text-white font-bold text-sm tracking-wide shadow-md hover:shadow-lg transition-all duration-200 flex items-center justify-center gap-2 cursor-pointer disabled:opacity-70 disabled:cursor-not-allowed"
+              className="w-full py-3 px-4 rounded-xl bg-blue-700 hover:bg-blue-800 text-white font-bold text-sm tracking-wide shadow-md shadow-blue-700/20 hover:shadow-lg transition-all duration-200 flex items-center justify-center gap-2 cursor-pointer disabled:opacity-70 disabled:cursor-not-allowed"
             >
               {isLoading ? (
                 <span className="inline-flex items-center gap-2">
@@ -390,7 +422,7 @@ export const AuthForm: React.FC<AuthFormProps> = ({ onForgotPassword }) => {
 
       <div className="mt-6 text-center text-xs text-slate-500">
         <span>
-          {isLogin ? 'Bạn chưa có tài khoản SkillBridge?' : 'Đã có tài khoản SkillBridge?'}
+          {isLogin ? 'Bạn chưa có tài khoản?' : 'Đã có tài khoản?'}
         </span>
         <button
           type="button"
