@@ -1,7 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import type { components } from '../api/schema';
 import { api, endpoints, getApiError } from './api';
-import { clearToken, readToken, saveTokenPair } from './token';
 
 export type AuthUser = components['schemas']['UserResource'];
 export type ForgotPasswordInput = components['schemas']['ForgotPasswordRequest'];
@@ -9,15 +8,8 @@ export type ResetPasswordInput = components['schemas']['ResetPasswordRequest'];
 
 const ME_QUERY_KEY = ['auth', 'me'] as const;
 
-export interface TokenPair {
-  token: string;
-  refresh_token: string;
-  token_type: 'Bearer';
-  expires_in: number;
-}
-
 interface AuthEnvelope {
-  data: { user: AuthUser } & Partial<TokenPair>;
+  data: { user: AuthUser };
 }
 
 export interface LoginInput {
@@ -39,27 +31,14 @@ async function fetchMe(): Promise<AuthUser> {
   return response.data.data;
 }
 
-/** Current session, cached for a minute; disabled when no token exists. */
+/** Current session, cached for a minute; authenticated via Sanctum session cookie. */
 export function useMe() {
   return useQuery({
     queryKey: ME_QUERY_KEY,
     queryFn: fetchMe,
-    enabled: readToken() !== null,
     retry: false,
     staleTime: 60_000,
   });
-}
-
-function storeSession(response: { data: AuthEnvelope }, remember: boolean): AuthUser {
-  const payload = response.data.data;
-
-  if (!payload.token || !payload.refresh_token) {
-    throw new Error('Máy chủ không trả về đủ thông tin phiên đăng nhập.');
-  }
-
-  saveTokenPair(payload.token, payload.refresh_token, remember);
-
-  return payload.user;
 }
 
 export function useLogin() {
@@ -70,10 +49,27 @@ export function useLogin() {
       const response = await api.post<AuthEnvelope>(endpoints.auth.login, {
         email: input.email,
         password: input.password,
-        device_name: 'web',
+        remember: input.remember,
       });
 
-      return storeSession(response, input.remember);
+      return response.data.data.user;
+    },
+    onSuccess: (user) => {
+      queryClient.setQueryData(ME_QUERY_KEY, user);
+    },
+  });
+}
+
+export function useSocialExchange() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (code: string) => {
+      const response = await api.post<AuthEnvelope>(endpoints.auth.socialExchange, {
+        code,
+      });
+
+      return response.data.data.user;
     },
     onSuccess: (user) => {
       queryClient.setQueryData(ME_QUERY_KEY, user);
@@ -97,7 +93,6 @@ export function useRegister() {
       return response.data.data.user;
     },
     onSuccess: () => {
-      clearToken();
       queryClient.removeQueries({ queryKey: ME_QUERY_KEY });
     },
   });
@@ -108,11 +103,7 @@ export function useLogout() {
 
   return useMutation({
     mutationFn: async () => {
-      try {
-        await api.post(endpoints.auth.logout);
-      } finally {
-        clearToken();
-      }
+      await api.post(endpoints.auth.logout);
     },
     onSettled: () => {
       queryClient.clear();
@@ -142,38 +133,32 @@ export function useResetPassword() {
       return response.data.message;
     },
     onSuccess: () => {
-      clearToken();
       queryClient.clear();
     },
   });
 }
 
-/**
- * Read the token that the Google callback appends to the URL fragment.
- * The fragment never reaches the server, and it is scrubbed from history.
- */
-export function consumeGoogleCallbackToken(): string | null {
-  const params = new URLSearchParams(window.location.hash.replace(/^#/, ''));
-  const token = params.get('token');
-  const refreshToken = params.get('refresh_token');
+export function consumeGoogleCallbackCode(): string | null {
+  const searchParams = new URLSearchParams(window.location.search);
+  const code = searchParams.get('code');
 
-  if (!token || !refreshToken) {
-    if (params.has('token') || params.has('error') || params.has('message')) {
-      window.history.replaceState({}, document.title, window.location.pathname);
-    }
-    return null;
+  if (code) {
+    searchParams.delete('code');
+    const newSearch = searchParams.toString();
+    const newUrl = window.location.pathname + (newSearch ? `?${newSearch}` : '') + window.location.hash;
+    window.history.replaceState({}, document.title, newUrl);
+    return code;
   }
 
-  saveTokenPair(token, refreshToken, true);
-  window.history.replaceState({}, document.title, window.location.pathname);
-
-  return token;
+  return null;
 }
 
 export function consumeGoogleCallbackError(): string | null {
-  const params = new URLSearchParams(window.location.hash.replace(/^#/, ''));
-  const error = params.get('error');
-  const message = params.get('message');
+  const hashParams = new URLSearchParams(window.location.hash.replace(/^#/, ''));
+  const searchParams = new URLSearchParams(window.location.search);
+
+  const error = hashParams.get('error') ?? searchParams.get('error');
+  const message = hashParams.get('message') ?? searchParams.get('message');
 
   if (!error && !message) return null;
 

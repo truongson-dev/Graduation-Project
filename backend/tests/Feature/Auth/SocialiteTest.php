@@ -80,6 +80,31 @@ it('links an existing account by email', function () {
         ->and(User::query()->count())->toBe(1);
 });
 
+it('updates the avatar when an existing Google user logs in with a new avatar', function () {
+    $user = User::factory()->create([
+        'email' => 'existing@example.com',
+        'google_id' => 'google-existing',
+        'avatar_url' => 'https://example.com/old.png',
+    ]);
+
+    Socialite::fake('google', SocialiteUser::fake([
+        'id' => 'google-existing',
+        'name' => 'Existing User',
+        'email' => 'existing@example.com',
+        'avatar' => 'https://example.com/new.png',
+        'email_verified' => true,
+    ]));
+
+    $state = $this->withHeader('Origin', 'http://localhost:5173')
+        ->getJson('/api/v1/auth/social/google/redirect')
+        ->json('data.state');
+
+    $this->get('/api/v1/auth/social/google/callback?code=fake-code&state='.$state)
+        ->assertRedirect();
+
+    expect($user->fresh()->avatar_url)->toBe('https://example.com/new.png');
+});
+
 it('rejects linking a second Google account to the same email', function () {
     User::factory()->create([
         'email' => 'conflict@example.com',
@@ -92,14 +117,16 @@ it('rejects linking a second Google account to the same email', function () {
         'name' => 'Conflict',
     ]));
 
-    $state = $this->getJson('/api/v1/auth/social/google/redirect')->json('data.state');
+    $state = $this->withHeader('Origin', 'http://localhost:5173')
+        ->getJson('/api/v1/auth/social/google/redirect')
+        ->json('data.state');
 
     $this->getJson('/api/v1/auth/social/google/callback?code=fake-code&state='.$state)
         ->assertUnprocessable()
         ->assertJsonValidationErrors('email');
 });
 
-it('redirects the browser to the frontend with a token fragment', function () {
+it('redirects the browser to the frontend with an exchange code and completes session login', function () {
     Socialite::fake('google', SocialiteUser::fake([
         'id' => 'google-browser',
         'name' => 'Browser User',
@@ -107,17 +134,30 @@ it('redirects the browser to the frontend with a token fragment', function () {
         'email_verified' => true,
     ]));
 
-    $state = $this->getJson('/api/v1/auth/social/google/redirect')->json('data.state');
+    $state = $this->withHeader('Origin', 'http://localhost:5173')
+        ->getJson('/api/v1/auth/social/google/redirect')
+        ->json('data.state');
 
     $response = $this->get('/api/v1/auth/social/google/callback?code=fake-code&state='.$state);
 
     $response->assertRedirect();
 
-    expect($response->headers->get('Location'))
-        ->toStartWith(config('app.frontend_url').'/auth/callback#')
-        ->toContain('token=')
-        ->toContain('refresh_token=')
-        ->toContain('token_type=Bearer');
+    $location = $response->headers->get('Location');
+    expect($location)->toStartWith(config('app.frontend_url').'/auth/callback?code=');
+
+    parse_str(parse_url((string) $location, PHP_URL_QUERY) ?: '', $query);
+    $exchangeCode = $query['code'] ?? null;
+    expect($exchangeCode)->toBeString()->toHaveLength(40);
+
+    $exchangeResponse = $this->withHeader('Origin', 'http://localhost:5173')
+        ->postJson('/api/v1/auth/social/exchange', [
+            'code' => $exchangeCode,
+        ]);
+
+    $exchangeResponse->assertOk()
+        ->assertJsonStructure(['data' => ['user']]);
+
+    $this->assertAuthenticatedAs(User::where('email', 'browser@example.com')->first());
 });
 
 it('rejects an unknown or expired state', function () {
@@ -131,7 +171,9 @@ it('rejects an unknown or expired state', function () {
 it('handles a denied Google consent', function () {
     Socialite::fake('google');
 
-    $state = $this->getJson('/api/v1/auth/social/google/redirect')->json('data.state');
+    $state = $this->withHeader('Origin', 'http://localhost:5173')
+        ->getJson('/api/v1/auth/social/google/redirect')
+        ->json('data.state');
 
     $this->getJson('/api/v1/auth/social/google/callback?error=access_denied&state='.$state)
         ->assertUnprocessable()
@@ -141,7 +183,9 @@ it('handles a denied Google consent', function () {
 it('returns a cancelled Google login to the frontend with a readable message', function () {
     Socialite::fake('google');
 
-    $state = $this->getJson('/api/v1/auth/social/google/redirect')->json('data.state');
+    $state = $this->withHeader('Origin', 'http://localhost:5173')
+        ->getJson('/api/v1/auth/social/google/redirect')
+        ->json('data.state');
     $response = $this->get('/api/v1/auth/social/google/callback?error=access_denied&state='.$state);
 
     $response->assertRedirect();

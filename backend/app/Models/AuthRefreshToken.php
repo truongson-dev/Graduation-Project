@@ -5,7 +5,20 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Support\Carbon;
 
+/**
+ * @property int $id
+ * @property int $user_id
+ * @property string $family_id
+ * @property string $device_name
+ * @property string $token_hash
+ * @property Carbon $expires_at
+ * @property Carbon|null $revoked_at
+ * @property Carbon|null $created_at
+ * @property Carbon|null $updated_at
+ * @property-read User|null $user
+ */
 #[Fillable(['user_id', 'family_id', 'device_name', 'token_hash', 'expires_at', 'revoked_at'])]
 class AuthRefreshToken extends Model
 {

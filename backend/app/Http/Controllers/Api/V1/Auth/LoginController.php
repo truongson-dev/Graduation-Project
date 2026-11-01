@@ -7,14 +7,18 @@ use App\Http\Controllers\Controller;
 use App\Http\Requests\Auth\LoginRequest;
 use App\Models\User;
 use Illuminate\Http\JsonResponse;
-use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\RateLimiter;
 use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
 
 class LoginController extends Controller
 {
     use HandlesAuthentication;
+
+    private const MAX_ATTEMPTS = 5;
+
+    private const DECAY_SECONDS = 900;
 
     /**
      * Authenticate a first-party or token client.
@@ -23,13 +27,10 @@ class LoginController extends Controller
     {
         $validated = $request->validated();
         $email = $validated['email'];
-        $lockKey = $this->lockKey($email);
-        $attemptsKey = $this->attemptsKey($email);
+        $throttleKey = $this->throttleKey($email);
 
-        $lockedUntil = Cache::get($lockKey);
-
-        if (is_numeric($lockedUntil)) {
-            return $this->lockedResponse(max(1, (int) $lockedUntil - now()->timestamp));
+        if (RateLimiter::tooManyAttempts($throttleKey, self::MAX_ATTEMPTS)) {
+            return $this->lockedResponse(RateLimiter::availableIn($throttleKey));
         }
 
         $user = User::query()->where('email', $email)->first();
@@ -40,15 +41,10 @@ class LoginController extends Controller
         $passwordIsValid = Hash::check($validated['password'], $passwordHash);
 
         if (! $user instanceof User || ! $passwordIsValid) {
-            Cache::add($attemptsKey, 0, now()->addMinutes(15));
-            $attempts = Cache::increment($attemptsKey);
+            $hits = RateLimiter::hit($throttleKey, self::DECAY_SECONDS);
 
-            if ($attempts >= 5) {
-                Cache::forget($attemptsKey);
-                $lockedUntil = now()->addMinutes(15);
-                Cache::put($lockKey, $lockedUntil->timestamp, $lockedUntil);
-
-                return $this->lockedResponse();
+            if ($hits >= self::MAX_ATTEMPTS) {
+                return $this->lockedResponse(RateLimiter::availableIn($throttleKey));
             }
 
             throw ValidationException::withMessages([
@@ -56,8 +52,7 @@ class LoginController extends Controller
             ]);
         }
 
-        Cache::forget($attemptsKey);
-        Cache::forget($lockKey);
+        RateLimiter::clear($throttleKey);
 
         if (Hash::needsRehash($user->password)) {
             $user->forceFill(['password' => $validated['password']])->save();
@@ -85,13 +80,8 @@ class LoginController extends Controller
         ], 423)->header('Retry-After', (string) $retryAfterSeconds);
     }
 
-    private function lockKey(string $email): string
+    private function throttleKey(string $email): string
     {
-        return 'auth:login:locked:'.hash('sha256', $email);
-    }
-
-    private function attemptsKey(string $email): string
-    {
-        return 'auth:login:attempts:'.hash('sha256', $email);
+        return 'auth:login:throttle:'.hash('sha256', Str::lower(trim($email)));
     }
 }

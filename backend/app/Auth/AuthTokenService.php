@@ -69,6 +69,33 @@ class AuthTokenService
     }
 
     /**
+     * Revoke the refresh token family identified by a plain-text refresh token.
+     */
+    public function revokeByRefreshToken(string $plainTextToken): bool
+    {
+        return DB::transaction(function () use ($plainTextToken): bool {
+            $refreshToken = AuthRefreshToken::query()
+                ->where('token_hash', hash('sha256', $plainTextToken))
+                ->lockForUpdate()
+                ->first();
+
+            if (! $refreshToken instanceof AuthRefreshToken) {
+                return false;
+            }
+
+            $user = $refreshToken->user;
+
+            if ($user instanceof User) {
+                $this->revokeFamily($user, $refreshToken->family_id);
+
+                return true;
+            }
+
+            return false;
+        });
+    }
+
+    /**
      * Revoke the refresh token family associated with a Sanctum access token.
      */
     public function revokeForAccessToken(User $user, ?PersonalAccessToken $accessToken): void
@@ -101,6 +128,7 @@ class AuthTokenService
     private function issuePair(User $user, string $deviceName, string $familyId): array
     {
         $plainTextRefreshToken = Str::random(80);
+        $minutes = (int) (config('sanctum.expiration') ?: self::ACCESS_TOKEN_MINUTES);
 
         AuthRefreshToken::query()->create([
             'user_id' => $user->getKey(),
@@ -113,14 +141,14 @@ class AuthTokenService
         $accessToken = $user->createToken(
             $deviceName.'|'.$familyId,
             ['*'],
-            now()->addMinutes(self::ACCESS_TOKEN_MINUTES),
+            now()->addMinutes($minutes),
         );
 
         return [
             'token' => $accessToken->plainTextToken,
             'refresh_token' => $plainTextRefreshToken,
             'token_type' => 'Bearer',
-            'expires_in' => self::ACCESS_TOKEN_MINUTES * 60,
+            'expires_in' => $minutes * 60,
         ];
     }
 

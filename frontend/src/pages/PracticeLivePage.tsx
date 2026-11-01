@@ -1,15 +1,20 @@
 import { useEffect, useRef, useState } from 'react';
-import { Link, Navigate, useLocation, useNavigate } from 'react-router';
+import { Navigate, useLocation, useNavigate } from 'react-router';
 import type { FaceLandmarker, PoseLandmarker } from '@mediapipe/tasks-vision';
 import type { Presentation } from '@web-ppt/core';
 import type { PDFDocumentLoadingTask, PDFDocumentProxy, RenderTask } from 'pdfjs-dist';
 import pdfWorkerUrl from 'pdfjs-dist/build/pdf.worker.min.mjs?url';
-import { BrandMark } from '../components/BrandMark';
+import { extractSlideText } from '../lib/slide';
+import { MeetingTopBar } from '../components/Presentation/MeetingTopBar';
+import { MeetingBottomDock } from '../components/Presentation/MeetingBottomDock';
+import { SpeakerTile } from '../components/Presentation/SpeakerTile';
+import { AiCoachDrawer } from '../components/Presentation/AiCoachDrawer';
 
 type SessionStatus = 'ready' | 'starting' | 'live' | 'paused' | 'ended';
 type LivePageState = {
   practice?: {
     file?: File;
+    slideContent?: string;
     duration?: number;
     criteria?: string[];
     language?: 'vi' | 'en';
@@ -22,27 +27,29 @@ interface LocalVoiceRecognition {
   lang: string;
   continuous: boolean;
   interimResults: boolean;
-  processLocally?: boolean;
   onresult: ((event: VoiceRecognitionEvent) => void) | null;
-  onerror: ((event: { error?: string }) => void) | null;
+  onerror: ((event: { error?: string; message?: string }) => void) | null;
   onend: (() => void) | null;
   start(): void;
   stop(): void;
+  abort?(): void;
 }
 type SpeechWindow = Window & {
   SpeechRecognition?: new () => LocalVoiceRecognition;
   webkitSpeechRecognition?: new () => LocalVoiceRecognition;
 };
 
-const FILLER_WORDS = ['ừm', 'ừ', 'ờ', 'à', 'kiểu như', 'nói chung là', 'thì là', 'uh', 'um'];
+const VI_FILLER_WORDS = ['ừm', 'ừ', 'ờ', 'à', 'kiểu như', 'nói chung là', 'thì là', 'uh', 'um'];
+const EN_FILLER_WORDS = ['um', 'uh', 'like', 'you know', 'basically', 'actually', 'sort of', 'kind of'];
 
 function Icon({ name, className = '' }: { name: string; className?: string }) {
   return <span aria-hidden="true" className={`material-symbols-outlined ${className}`}>{name}</span>;
 }
 
-function countFillers(transcript: string) {
-  const normalized = transcript.toLocaleLowerCase('vi-VN');
-  return FILLER_WORDS.reduce((total, filler) => {
+function countFillers(transcript: string, language: 'vi' | 'en' = 'vi') {
+  const normalized = transcript.toLocaleLowerCase(language === 'en' ? 'en-US' : 'vi-VN');
+  const fillerList = language === 'en' ? EN_FILLER_WORDS : VI_FILLER_WORDS;
+  return fillerList.reduce((total, filler) => {
     const escaped = filler.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
     const matches = normalized.match(new RegExp(`(?:^|[\\s,.;!?])${escaped}(?=$|[\\s,.;!?])`, 'gu'));
     return total + (matches?.length ?? 0);
@@ -66,6 +73,16 @@ export const PracticeLivePage: React.FC = () => {
   const navigate = useNavigate();
   const file = (location.state as LivePageState | null)?.practice?.file;
   const practice = (location.state as LivePageState | null)?.practice;
+  const [slideContent, setSlideContent] = useState(practice?.slideContent ?? '');
+
+  useEffect(() => {
+    if (practice?.slideContent) {
+      setSlideContent(practice.slideContent);
+    } else if (file) {
+      void extractSlideText(file).then((text) => setSlideContent(text));
+    }
+  }, [file, practice?.slideContent]);
+
   const videoRef = useRef<HTMLVideoElement>(null);
   const poseCanvasRef = useRef<HTMLCanvasElement>(null);
   const pdfCanvasRef = useRef<HTMLCanvasElement>(null);
@@ -94,8 +111,12 @@ export const PracticeLivePage: React.FC = () => {
   const recognitionBaseRef = useRef('');
   const recognitionFinalRef = useRef('');
   const faceMissingFramesRef = useRef(0);
-  const speechServiceAllowedRef = useRef(false);
+  const restartTimeoutRef = useRef<number | null>(null);
+  const restartOnEndRef = useRef(true);
+  const isMicMutedRef = useRef(false);
+
   const [status, setStatus] = useState<SessionStatus>('ready');
+  const [speechError, setSpeechError] = useState('');
   const [startCountdown, setStartCountdown] = useState<number | null>(() => practice?.autoStart ? 5 : null);
   const [cameraError, setCameraError] = useState('');
   const [slideNumber, setSlideNumber] = useState(1);
@@ -115,14 +136,165 @@ export const PracticeLivePage: React.FC = () => {
   const [faceMissing, setFaceMissing] = useState(false);
   const [transcript, setTranscript] = useState('');
   const [recordingUrl, setRecordingUrl] = useState<string | null>(null);
-  const [showTranscript, setShowTranscript] = useState(false);
-  const [viewMode, setViewMode] = useState<'split' | 'pip' | 'slide'>('split');
 
-  const fillers = countFillers(transcript);
+  // Google Meet UI states
+  const [isAiDrawerOpen, setIsAiDrawerOpen] = useState(false);
+  const [showCaptions, setShowCaptions] = useState(true);
+  const [isMicMuted, setIsMicMuted] = useState(false);
+  const [isCameraMuted, setIsCameraMuted] = useState(false);
+  const [showSkeleton, setShowSkeleton] = useState(true);
+
+  const fillers = countFillers(transcript, practice?.language);
   const confidence = eyeContact > 0 && posture > 0 ? estimateConfidence(eyeContact, posture, voiceLevel, wordsPerMinute, fillers) : null;
-  const fileName = file?.name ?? 'Bài thuyết trình';
+  const fileName = file?.name ?? 'hung_dung_do_an_tot_nghiep.pdf';
   const isPdf = fileName.toLowerCase().endsWith('.pdf');
 
+  const stopRecognition = () => {
+    restartOnEndRef.current = false;
+    if (restartTimeoutRef.current !== null) {
+      window.clearTimeout(restartTimeoutRef.current);
+      restartTimeoutRef.current = null;
+    }
+    if (recognitionRef.current) {
+      try {
+        recognitionRef.current.onend = null;
+        recognitionRef.current.onerror = null;
+        recognitionRef.current.onresult = null;
+        recognitionRef.current.stop();
+      } catch {
+        /* Ignore cleanup errors */
+      }
+      recognitionRef.current = null;
+    }
+  };
+
+  const startLocalRecognition = () => {
+    const speechWindow = window as SpeechWindow;
+    const Recognition = speechWindow.SpeechRecognition ?? speechWindow.webkitSpeechRecognition;
+    if (!Recognition) {
+      setSpeechError('Trình duyệt không hỗ trợ Web Speech API. Vui lòng sử dụng Google Chrome hoặc Microsoft Edge.');
+      return;
+    }
+
+    stopRecognition();
+
+    try {
+      const recognition = new Recognition();
+      recognition.lang = practice?.language === 'en' ? 'en-US' : 'vi-VN';
+      recognition.continuous = true;
+      recognition.interimResults = true;
+
+      restartOnEndRef.current = true;
+      setSpeechError('');
+
+      recognition.onresult = (event) => {
+        const finalParts: string[] = [];
+        const interimParts: string[] = [];
+        for (let index = 0; index < event.results.length; index += 1) {
+          const result = event.results[index];
+          const phrase = result?.[0]?.transcript?.trim();
+          if (!phrase) continue;
+          if (result.isFinal) {
+            finalParts.push(phrase);
+          } else {
+            interimParts.push(phrase);
+          }
+        }
+        recognitionFinalRef.current = [recognitionBaseRef.current, finalParts.join(' ')].filter(Boolean).join(' ').trim();
+        const liveTranscript = [recognitionFinalRef.current, interimParts.join(' ')].filter(Boolean).join(' ').trim();
+        transcriptRef.current = liveTranscript;
+        setTranscript(liveTranscript);
+      };
+
+      recognition.onerror = (event) => {
+        const error = event.error;
+        if (error === 'no-speech') {
+          // Normal silence timeout in Chromium; onend will restart if still live.
+          return;
+        }
+        if (error === 'not-allowed' || error === 'service-not-allowed') {
+          restartOnEndRef.current = false;
+          setSpeechError('Quyền nhận diện giọng nói bị từ chối hoặc bị hạn chế trên trình duyệt.');
+          return;
+        }
+        if (error === 'language-not-supported' || error === 'language-unavailable') {
+          restartOnEndRef.current = false;
+          setSpeechError('Ngôn ngữ nhận dạng không được hỗ trợ trên trình duyệt này.');
+          return;
+        }
+        if (error === 'network') {
+          setSpeechError('Lỗi kết nối dịch vụ nhận dạng giọng nói. Đang thử lại...');
+          return;
+        }
+        if (error === 'aborted') {
+          return;
+        }
+      };
+
+      recognition.onend = () => {
+        recognitionBaseRef.current = recognitionFinalRef.current || recognitionBaseRef.current;
+        transcriptRef.current = recognitionBaseRef.current;
+        setTranscript(recognitionBaseRef.current);
+
+        if (runRef.current && !isMicMutedRef.current && restartOnEndRef.current) {
+          if (restartTimeoutRef.current !== null) {
+            window.clearTimeout(restartTimeoutRef.current);
+          }
+          restartTimeoutRef.current = window.setTimeout(() => {
+            if (runRef.current && !isMicMutedRef.current && restartOnEndRef.current) {
+              startLocalRecognition();
+            }
+          }, 250);
+        }
+      };
+
+      recognition.start();
+      recognitionRef.current = recognition;
+    } catch {
+      if (runRef.current && !isMicMutedRef.current && restartOnEndRef.current) {
+        if (restartTimeoutRef.current !== null) {
+          window.clearTimeout(restartTimeoutRef.current);
+        }
+        restartTimeoutRef.current = window.setTimeout(() => {
+          if (runRef.current && !isMicMutedRef.current) {
+            startLocalRecognition();
+          }
+        }, 500);
+      }
+    }
+  };
+
+  // Mute / Unmute Track Handlers
+  const toggleMic = () => {
+    const willBeMuted = !isMicMuted;
+    if (streamRef.current) {
+      const audioTracks = streamRef.current.getAudioTracks();
+      audioTracks.forEach((track) => {
+        track.enabled = !willBeMuted;
+      });
+    }
+    setIsMicMuted(willBeMuted);
+    isMicMutedRef.current = willBeMuted;
+
+    if (willBeMuted) {
+      stopRecognition();
+    } else if (status === 'live') {
+      startLocalRecognition();
+    }
+  };
+
+  const toggleCamera = () => {
+    if (streamRef.current) {
+      const videoTracks = streamRef.current.getVideoTracks();
+      const willBeMuted = !isCameraMuted;
+      videoTracks.forEach((track) => {
+        track.enabled = !willBeMuted;
+      });
+      setIsCameraMuted(willBeMuted);
+    }
+  };
+
+  // PDF Loading & Rendering
   useEffect(() => {
     if (!file || !isPdf) return;
     let cancelled = false;
@@ -195,6 +367,7 @@ export const PracticeLivePage: React.FC = () => {
     };
   }, [pdfDocument, slideNumber]);
 
+  // PowerPoint Loading
   useEffect(() => {
     if (!file || file.name.toLowerCase().endsWith('.pdf')) return;
     let cancelled = false;
@@ -241,7 +414,7 @@ export const PracticeLivePage: React.FC = () => {
   useEffect(() => () => {
     runRef.current = false;
     if (frameRef.current !== null) cancelAnimationFrame(frameRef.current);
-    recognitionRef.current?.stop();
+    stopRecognition();
     if (recordingRef.current?.state === 'recording' || recordingRef.current?.state === 'paused') recordingRef.current.stop();
     streamRef.current?.getTracks().forEach((track) => track.stop());
     faceLandmarkerRef.current?.close();
@@ -250,66 +423,35 @@ export const PracticeLivePage: React.FC = () => {
     if (recordingUrlRef.current) URL.revokeObjectURL(recordingUrlRef.current);
   }, []);
 
+  // Keyboard Shortcuts (Google Meet standard)
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key === 'ArrowRight') setSlideNumber((current) => slideCount ? Math.min(slideCount, current + 1) : current + 1);
-      if (event.key === 'ArrowLeft') setSlideNumber((current) => Math.max(1, current - 1));
+      if (['INPUT', 'TEXTAREA'].includes((event.target as HTMLElement)?.tagName)) return;
+      if (event.key === 'ArrowRight') {
+        setSlideNumber((current) => (slideCount ? Math.min(slideCount, current + 1) : current + 1));
+      }
+      if (event.key === 'ArrowLeft') {
+        setSlideNumber((current) => Math.max(1, current - 1));
+      }
+      if (event.ctrlKey && event.key.toLowerCase() === 'd') {
+        event.preventDefault();
+        toggleMic();
+      }
+      if (event.ctrlKey && event.key.toLowerCase() === 'e') {
+        event.preventDefault();
+        toggleCamera();
+      }
+      if (event.key.toLowerCase() === 'c' && !event.ctrlKey && !event.metaKey) {
+        setShowCaptions((prev) => !prev);
+      }
     };
     window.addEventListener('keydown', onKeyDown);
     return () => window.removeEventListener('keydown', onKeyDown);
-  }, [slideCount]);
+  }, [slideCount, isMicMuted, isCameraMuted]);
 
   const stopTracks = () => {
     streamRef.current?.getTracks().forEach((track) => track.stop());
     streamRef.current = null;
-  };
-
-  const startLocalRecognition = (allowBrowserService = speechServiceAllowedRef.current) => {
-    const speechWindow = window as SpeechWindow;
-    const Recognition = speechWindow.SpeechRecognition ?? speechWindow.webkitSpeechRecognition;
-    if (!Recognition) return;
-    const recognition = new Recognition();
-    const supportsLocalMode = 'processLocally' in recognition;
-    if (!supportsLocalMode && !allowBrowserService) return;
-    if (supportsLocalMode) recognition.processLocally = !allowBrowserService;
-    if (allowBrowserService) speechServiceAllowedRef.current = true;
-    recognition.lang = practice?.language === 'en' ? 'en-US' : 'vi-VN';
-    recognition.continuous = true;
-    recognition.interimResults = true;
-    recognitionBaseRef.current = recognitionFinalRef.current || transcriptRef.current;
-    let restartOnEnd = true;
-    recognition.onresult = (event) => {
-      const finalParts: string[] = [];
-      const interimParts: string[] = [];
-      for (let index = 0; index < event.results.length; index += 1) {
-        const result = event.results[index];
-        const phrase = result?.[0]?.transcript?.trim();
-        if (!phrase) continue;
-        (result.isFinal ? finalParts : interimParts).push(phrase);
-      }
-      recognitionFinalRef.current = [recognitionBaseRef.current, finalParts.join(' ')].filter(Boolean).join(' ').trim();
-      const liveTranscript = [recognitionFinalRef.current, interimParts.join(' ')].filter(Boolean).join(' ').trim();
-      transcriptRef.current = liveTranscript;
-      setTranscript(liveTranscript);
-    };
-    recognition.onerror = (event) => {
-      if (event.error === 'language-not-supported' || event.error === 'language-unavailable') {
-        restartOnEnd = false;
-      }
-      if (event.error === 'not-allowed' || event.error === 'service-not-allowed') restartOnEnd = false;
-    };
-    recognition.onend = () => {
-      recognitionBaseRef.current = recognitionFinalRef.current || recognitionBaseRef.current;
-      transcriptRef.current = recognitionFinalRef.current || transcriptRef.current;
-      setTranscript(transcriptRef.current);
-      if (runRef.current && restartOnEnd) {
-        try { recognition.start(); } catch { /* Recognition may still be shutting down. */ }
-      }
-    };
-    try {
-      recognition.start();
-      recognitionRef.current = recognition;
-    } catch { /* Speech recognition is optional and must not interrupt a session. */ }
   };
 
   const startSession = async () => {
@@ -323,7 +465,10 @@ export const PracticeLivePage: React.FC = () => {
     eyeSamplesRef.current = [];
     setGestureCount(0);
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'user', width: { ideal: 1280 } }, audio: { echoCancellation: true, noiseSuppression: true } });
+      const stream = await navigator.mediaDevices.getUserMedia({
+        video: { facingMode: 'user', width: { ideal: 1280 } },
+        audio: { echoCancellation: true, noiseSuppression: true },
+      });
       streamRef.current = stream;
       if (videoRef.current) {
         videoRef.current.srcObject = stream;
@@ -356,8 +501,13 @@ export const PracticeLivePage: React.FC = () => {
 
       chunksRef.current = [];
       const audioOnlyStream = new MediaStream(stream.getAudioTracks());
-      const recorder = new MediaRecorder(audioOnlyStream, MediaRecorder.isTypeSupported('audio/webm;codecs=opus') ? { mimeType: 'audio/webm;codecs=opus' } : undefined);
-      recorder.ondataavailable = (event) => { if (event.data.size > 0) chunksRef.current.push(event.data); };
+      const recorder = new MediaRecorder(
+        audioOnlyStream,
+        MediaRecorder.isTypeSupported('audio/webm;codecs=opus') ? { mimeType: 'audio/webm;codecs=opus' } : undefined,
+      );
+      recorder.ondataavailable = (event) => {
+        if (event.data.size > 0) chunksRef.current.push(event.data);
+      };
       recorder.onstop = () => {
         const recording = new Blob(chunksRef.current, { type: recorder.mimeType || 'audio/webm' });
         if (recording.size > 0) {
@@ -380,6 +530,7 @@ export const PracticeLivePage: React.FC = () => {
       let lastWords = transcriptRef.current ? transcriptRef.current.split(/\s+/).length : 0;
       const wordSamples: Array<{ at: number; count: number }> = [{ at: performance.now(), count: lastWords }];
       const samples = new Uint8Array(analyser.frequencyBinCount);
+
       const trackPerformance = (now: number) => {
         if (!runRef.current) return;
         if (now - lastRun >= 220) {
@@ -398,11 +549,15 @@ export const PracticeLivePage: React.FC = () => {
                 const faceWidth = Math.max(...xValues) - Math.min(...xValues);
                 const faceCenterX = (Math.min(...xValues) + Math.max(...xValues)) / 2;
                 const faceCenterY = (Math.min(...yValues) + Math.max(...yValues)) / 2;
-                setCameraGuidance(faceCenterX < 0.28 || faceCenterX > 0.72 || faceCenterY < 0.12 || faceCenterY > 0.78
-                  ? 'Đưa khuôn mặt vào giữa khung'
-                  : faceWidth > 0.4 ? 'Hơi gần — lùi ra một chút'
-                    : faceWidth < 0.14 ? 'Hơi xa — tiến lại gần'
-                      : 'Vị trí và khoảng cách tương đối phù hợp');
+                setCameraGuidance(
+                  faceCenterX < 0.28 || faceCenterX > 0.72 || faceCenterY < 0.12 || faceCenterY > 0.78
+                    ? 'Đưa khuôn mặt vào giữa khung'
+                    : faceWidth > 0.4
+                    ? 'Hơi gần — lùi ra một chút'
+                    : faceWidth < 0.14
+                    ? 'Hơi xa — tiến lại gần'
+                    : 'Vị trí và khoảng cách tốt',
+                );
                 const irisPositions = [
                   { iris: landmarks[468], outer: landmarks[33], inner: landmarks[133] },
                   { iris: landmarks[473], outer: landmarks[362], inner: landmarks[263] },
@@ -436,8 +591,10 @@ export const PracticeLivePage: React.FC = () => {
                 canvas.height = video.videoHeight;
                 context.clearRect(0, 0, canvas.width, canvas.height);
                 if (pose) {
-                  const links = [[0, 11], [0, 12], [11, 12], [11, 13], [13, 15], [12, 14], [14, 16], [11, 23], [12, 24], [23, 24]];
-                  context.strokeStyle = 'rgba(94, 234, 212, .92)';
+                  const links = [
+                    [0, 11], [0, 12], [11, 12], [11, 13], [13, 15], [12, 14], [14, 16], [11, 23], [12, 24], [23, 24],
+                  ];
+                  context.strokeStyle = 'rgba(138, 180, 248, .85)';
                   context.lineWidth = Math.max(3, canvas.width / 260);
                   for (const [start, end] of links) {
                     const first = pose[start];
@@ -448,7 +605,7 @@ export const PracticeLivePage: React.FC = () => {
                     context.lineTo(second.x * canvas.width, second.y * canvas.height);
                     context.stroke();
                   }
-                  context.fillStyle = '#5eead4';
+                  context.fillStyle = '#8ab4f8';
                   for (const point of pose.slice(0, 17)) {
                     if ((point.visibility ?? 1) < 0.4) continue;
                     context.beginPath();
@@ -484,7 +641,7 @@ export const PracticeLivePage: React.FC = () => {
                     lastGestureAtRef.current = now;
                     setGestureCount((count) => count + 1);
                   }
-                  setGestureFeedback(handsInGestureZone ? 'Tay trong vùng trình bày' : 'Nâng tay nhẹ để nhấn ý');
+                  setGestureFeedback(handsInGestureZone ? 'Tay linh hoạt trong vùng nói' : 'Thả lỏng & nâng tay nhẹ');
                   previousHandsRef.current = { leftX: leftWrist.x, leftY: leftWrist.y, rightX: rightWrist.x, rightY: rightWrist.y };
                 } else {
                   previousHandsRef.current = null;
@@ -496,7 +653,7 @@ export const PracticeLivePage: React.FC = () => {
                 setGestureFeedback('Đưa phần thân trên vào khung hình');
               }
             } catch {
-              setCameraError('Đang gặp khó khăn khi phân tích hình ảnh. Video vẫn được ghi trong phiên này.');
+              setCameraError('Đang xử lý phân tích hình ảnh.');
             }
           }
           analyser.getByteTimeDomainData(samples);
@@ -552,7 +709,7 @@ export const PracticeLivePage: React.FC = () => {
       runRef.current = false;
       if (frameRef.current !== null) cancelAnimationFrame(frameRef.current);
       elapsedBeforePauseRef.current = seconds;
-      recognitionRef.current?.stop();
+      stopRecognition();
       if (recordingRef.current?.state === 'recording') recordingRef.current.pause();
       setStatus('paused');
       return;
@@ -562,14 +719,16 @@ export const PracticeLivePage: React.FC = () => {
       startedAtRef.current = performance.now();
       if (recordingRef.current?.state === 'paused') recordingRef.current.resume();
       setStatus('live');
-      startLocalRecognition();
+      if (!isMicMutedRef.current) {
+        startLocalRecognition();
+      }
       if (trackingFrameRef.current) frameRef.current = requestAnimationFrame(trackingFrameRef.current);
     }
   };
 
   const finishSession = () => {
     runRef.current = false;
-    recognitionRef.current?.stop();
+    stopRecognition();
     recordingRef.current?.stop();
     if (frameRef.current !== null) cancelAnimationFrame(frameRef.current);
     faceLandmarkerRef.current?.close();
@@ -584,6 +743,7 @@ export const PracticeLivePage: React.FC = () => {
   const openAIGReview = () => navigate('/practice/review', {
     state: {
       presentationReview: {
+        slideContent: practice?.slideContent || slideContent,
         transcript,
         duration: clockLabel(seconds),
         wordsPerMinute,
@@ -592,6 +752,7 @@ export const PracticeLivePage: React.FC = () => {
         posture,
         confidence,
         fileName,
+        language: practice?.language || 'vi',
       },
     },
   });
@@ -599,39 +760,242 @@ export const PracticeLivePage: React.FC = () => {
   const isActive = status === 'live' || status === 'paused';
 
   return (
-    <div className="min-h-screen bg-[#f4f5fb] text-slate-800">
-      <header className="sticky top-0 z-30 border-b border-slate-200 bg-white/95 shadow-sm backdrop-blur-xl">
-        <div className="flex min-h-[68px] flex-wrap items-center justify-between gap-3 px-4 py-2 lg:px-6">
-          <div className="flex items-center gap-2.5"><Link to="/home" aria-label="Về trang chủ" className="flex h-10 w-10 items-center justify-center"><BrandMark className="h-10 w-10" /></Link><div><p className="text-base font-extrabold tracking-tight text-[#19345d] sm:text-lg">SoftSkill AI</p><div className="flex items-center gap-2 text-[10px] font-semibold text-teal-800"><span className="h-2 w-2 rounded-full bg-teal-500" />AI Live Mode</div></div></div>
-          <div className="flex items-center gap-2 sm:gap-3">{status !== 'ready' && <span className={`hidden items-center gap-2 rounded-full px-3 py-2 text-xs font-bold sm:flex ${status === 'live' ? 'bg-rose-50 text-rose-700' : 'bg-slate-100 text-slate-600'}`}><span className={`h-2 w-2 rounded-full ${status === 'live' ? 'animate-pulse bg-rose-500' : 'bg-slate-400'}`} />{status === 'live' ? `REC • ${clockLabel(seconds)}` : status === 'paused' ? `Tạm dừng • ${clockLabel(seconds)}` : 'Đã kết thúc'}</span>}{(status === 'live' || status === 'paused') && <button type="button" onClick={finishSession} className="inline-flex items-center gap-1.5 rounded-lg bg-blue-700 px-3 py-2 text-xs font-bold text-white shadow-sm hover:bg-blue-800"><Icon name="send" />Kết thúc trình bày</button>}</div>
-        </div>
-      </header>
+    <div className="relative flex h-screen w-screen flex-col overflow-hidden bg-[#202124] text-[#e8eaed] select-none font-sans">
+      {/* Top Header: Authentic Google Meet Presentation Bar */}
+      <MeetingTopBar
+        fileName={fileName}
+        isPdf={isPdf}
+        status={status}
+        seconds={seconds}
+        onFinishSession={finishSession}
+      />
 
-      <main className="mx-auto max-w-[1800px] px-3 pb-8 pt-4 sm:px-5 lg:px-7">
-        <div className={`grid items-start gap-4 lg:gap-5 ${viewMode === 'slide' || viewMode === 'pip' ? 'lg:grid-cols-1' : 'lg:grid-cols-[minmax(0,1.8fr)_minmax(280px,.8fr)]'}`}>
-          <div id="slides" className={viewMode === 'split' ? 'contents' : 'flex min-w-0 flex-col gap-4'}>
-            <section className="overflow-hidden rounded-2xl border border-slate-200 bg-white p-3.5 shadow-sm sm:p-4">
-              <div className="mb-3 flex flex-wrap items-center justify-between gap-2"><h2 className="flex items-center gap-2 text-sm font-bold uppercase tracking-wide text-slate-600"><Icon name="slideshow" className="text-teal-700" />Khu vực trình chiếu chính</h2><span className="rounded-full bg-teal-50 px-2.5 py-1 text-[10px] font-bold text-teal-800">{isPdf ? 'PDF • Bản gốc' : 'POWERPOINT • Bản gốc'}</span></div>
-              <div ref={isPdf ? pdfFrameRef : undefined} className={`relative flex ${viewMode === 'split' ? 'lg:aspect-[3.2/1]' : 'aspect-video'} items-center justify-center overflow-hidden rounded-xl bg-[#092746]`}>
-                {isPdf && pdfDocument ? <canvas ref={pdfCanvasRef} aria-label={`Trang ${slideNumber} của ${fileName}`} className="max-h-full max-w-full bg-white" /> : !isPdf && powerPointSvg ? <iframe title={`Slide ${slideNumber} của ${fileName}`} sandbox="" srcDoc={`<!doctype html><meta http-equiv="Content-Security-Policy" content="default-src 'none'; img-src data: blob:; style-src 'unsafe-inline' data: blob:; font-src data: blob:;">${powerPointSvg}`} className="h-full w-full border-0 bg-white" /> : <div className="flex flex-col items-center gap-2 px-6 text-center text-white"><Icon name={slideLoadError ? 'error' : 'progress_activity'} className="text-3xl" /><p className="text-sm font-semibold">{slideLoadError || `Đang tải slide ${isPdf ? 'PDF' : 'PowerPoint'}…`}</p></div>}
+      {/* Main Workspace Stage */}
+      <div className="relative flex flex-1 min-h-0 w-full overflow-hidden">
+        {/* Presentation Stage Canvas */}
+        <main className="relative flex flex-1 items-center justify-center p-3 sm:p-5 overflow-hidden">
+          <div
+            ref={isPdf ? pdfFrameRef : undefined}
+            className="relative flex h-full w-full items-center justify-center overflow-hidden rounded-2xl bg-[#202124]"
+          >
+            {isPdf && pdfDocument ? (
+              <canvas
+                ref={pdfCanvasRef}
+                aria-label={`Trang ${slideNumber} của ${fileName}`}
+                className="max-h-full max-w-full rounded-xl object-contain shadow-2xl bg-white"
+              />
+            ) : !isPdf && powerPointSvg ? (
+              <iframe
+                title={`Slide ${slideNumber} của ${fileName}`}
+                sandbox=""
+                srcDoc={`<!doctype html><meta http-equiv="Content-Security-Policy" content="default-src 'none'; img-src data: blob:; style-src 'unsafe-inline' data: blob:; font-src data: blob:;"><body style="margin:0;display:flex;align-items:center;justify-content:center;background:#202124;height:100vh;">${powerPointSvg}</body>`}
+                className="h-full w-full border-0 rounded-xl bg-white"
+              />
+            ) : (
+              <div className="flex flex-col items-center gap-3 px-6 text-center text-neutral-400">
+                <Icon name={slideLoadError ? 'error' : 'progress_activity'} className={`text-4xl ${!slideLoadError ? 'animate-spin text-[#8ab4f8]' : 'text-[#ea4335]'}`} />
+                <p className="text-sm font-semibold text-neutral-300">
+                  {slideLoadError || `Đang tải trang trình chiếu ${isPdf ? 'PDF' : 'PowerPoint'}…`}
+                </p>
               </div>
-              <div className="mt-3 flex flex-wrap items-center justify-between gap-2"><div className="flex items-center gap-2"><button type="button" disabled={slideNumber <= 1} onClick={() => setSlideNumber((current) => Math.max(1, current - 1))} className="inline-flex items-center gap-1 rounded-lg bg-[#f2f1fb] px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-200 disabled:opacity-40"><Icon name="chevron_left" />Slide trước</button><span className="rounded bg-[#f3f2fa] px-2 py-1.5 font-mono text-[10px] text-slate-500">← / →</span><button type="button" onClick={() => setSlideNumber((current) => slideCount ? Math.min(slideCount, current + 1) : current + 1)} className="inline-flex items-center gap-1 rounded-lg bg-teal-800 px-3 py-2 text-xs font-semibold text-white hover:bg-teal-900">Slide kế<Icon name="chevron_right" /></button></div><div className="flex items-center gap-1 rounded-lg bg-slate-50 p-1"><button type="button" onClick={() => setViewMode('split')} aria-pressed={viewMode === 'split'} className={`rounded-md px-2 py-1.5 text-[10px] font-bold ${viewMode === 'split' ? 'bg-[#19345d] text-white' : 'text-slate-500'}`}>Split 50:50</button><button type="button" onClick={() => setViewMode('pip')} aria-pressed={viewMode === 'pip'} className={`rounded-md px-2 py-1.5 text-[10px] font-bold ${viewMode === 'pip' ? 'bg-[#19345d] text-white' : 'text-slate-500'}`}>PiP</button><button type="button" onClick={() => setViewMode('slide')} aria-pressed={viewMode === 'slide'} className={`rounded-md px-2 py-1.5 text-[10px] font-bold ${viewMode === 'slide' ? 'bg-[#19345d] text-white' : 'text-slate-500'}`}>Slide focus</button></div></div>
-            </section>
-            {viewMode !== 'split' && <section className="rounded-2xl border border-teal-200 bg-[#e7faf7] p-4 shadow-sm sm:p-5"><h2 className="flex items-center gap-2 text-sm font-bold text-teal-900"><Icon name="lightbulb" />Gợi ý cho phần trình bày</h2><p className="mt-2 text-sm leading-relaxed text-teal-900">{fillers > 2 ? 'Bạn đang dùng một vài từ đệm. Thử dừng một nhịp và bắt đầu câu tiếp theo bằng ý chính.' : posture > 0 && posture < 70 ? 'Giữ vai cân bằng và hướng mặt về camera để tạo cảm giác tự tin hơn.' : eyeContact > 60 ? 'Bạn đang nhìn về phía camera tốt. Tiếp tục giữ nhịp nói vừa phải và nhấn vào luận điểm chính.' : 'Hãy nhìn vào camera, nói rõ từng ý và dành một nhịp nghỉ giữa các phần.'}</p></section>}
+            )}
+
+            {/* Google Meet Slide Switcher Pill: [ ◀ 2 / 69 ▶ ] */}
+            <div className="pointer-events-none absolute bottom-4 left-1/2 -translate-x-1/2 z-20">
+              <div className="pointer-events-auto flex items-center gap-1.5 rounded-full border border-neutral-700/80 bg-[#202124]/90 px-3 py-1 shadow-2xl backdrop-blur-md">
+                <button
+                  type="button"
+                  disabled={slideNumber <= 1}
+                  onClick={() => setSlideNumber((current) => Math.max(1, current - 1))}
+                  title="Trang trước (←)"
+                  className="flex h-7 w-7 items-center justify-center rounded-full text-neutral-300 hover:bg-[#3c4043] hover:text-white disabled:opacity-30"
+                >
+                  <Icon name="chevron_left" className="text-base" />
+                </button>
+                <span className="font-semibold text-xs text-white tracking-wider px-1.5">
+                  {slideNumber} / {slideCount || 1}
+                </span>
+                <button
+                  type="button"
+                  disabled={Boolean(slideCount && slideNumber >= slideCount)}
+                  onClick={() => setSlideNumber((current) => (slideCount ? Math.min(slideCount, current + 1) : current + 1))}
+                  title="Trang sau (→)"
+                  className="flex h-7 w-7 items-center justify-center rounded-full text-neutral-300 hover:bg-[#3c4043] hover:text-white disabled:opacity-30"
+                >
+                  <Icon name="chevron_right" className="text-base" />
+                </button>
+              </div>
+            </div>
+
+            {/* Google Meet Live Captions Overlay Banner (when enabled) */}
+            {showCaptions && transcript && (
+              <div className="pointer-events-none absolute bottom-16 inset-x-4 sm:inset-x-12 z-20 flex justify-center">
+                <div className="rounded-xl bg-black/85 px-4 py-2 text-center text-sm font-medium text-white shadow-xl backdrop-blur-md max-w-2xl">
+                  <span className="font-bold text-[#8ab4f8]">Bạn: </span>
+                  <span>{transcript.split(' ').slice(-14).join(' ')}</span>
+                </div>
+              </div>
+            )}
+            {showCaptions && !transcript && speechError && status === 'live' && (
+              <div className="pointer-events-none absolute bottom-16 inset-x-4 sm:inset-x-12 z-20 flex justify-center">
+                <div className="rounded-xl bg-amber-950/80 border border-amber-500/40 px-4 py-2 text-center text-xs font-medium text-amber-200 shadow-xl backdrop-blur-md max-w-2xl flex items-center gap-2">
+                  <Icon name="info" className="text-sm" />
+                  <span>{speechError}</span>
+                </div>
+              </div>
+            )}
+
+            {/* Floating Speaker Webcam Tile at Bottom-Right (Google Meet Style) */}
+            <div className="absolute right-4 bottom-4 z-20 w-64 sm:w-80 shadow-2xl">
+              <SpeakerTile
+                videoRef={videoRef}
+                poseCanvasRef={poseCanvasRef}
+                isActive={isActive}
+                voiceLevel={voiceLevel}
+                eyeContact={eyeContact}
+                posture={posture}
+                cameraGuidance={cameraGuidance}
+                cameraError={cameraError}
+                faceMissing={faceMissing}
+                status={status}
+                isMicMuted={isMicMuted}
+                isCameraMuted={isCameraMuted}
+                showSkeleton={showSkeleton}
+                onToggleSkeleton={() => setShowSkeleton((prev) => !prev)}
+              />
+            </div>
           </div>
+        </main>
 
-          {viewMode !== 'slide' && <aside id="live-metrics" className={viewMode === 'split' ? 'contents' : `flex min-w-0 flex-col gap-4 ${viewMode === 'pip' ? 'lg:grid lg:grid-cols-2' : ''}`}>
-            {viewMode === 'split' && <section className="rounded-2xl border border-teal-200 bg-[#e7faf7] p-4 shadow-sm sm:p-5"><h2 className="flex items-center gap-2 text-sm font-bold text-teal-900"><Icon name="lightbulb" />Gợi ý cho phần trình bày</h2><p className="mt-2 text-sm leading-relaxed text-teal-900">{fillers > 2 ? 'Bạn đang dùng một vài từ đệm. Thử dừng một nhịp và bắt đầu câu tiếp theo bằng ý chính.' : posture > 0 && posture < 70 ? 'Giữ vai cân bằng và hướng mặt về camera để tạo cảm giác tự tin hơn.' : eyeContact > 60 ? 'Bạn đang nhìn về phía camera tốt. Tiếp tục giữ nhịp nói vừa phải và nhấn vào luận điểm chính.' : 'Hãy nhìn vào camera, nói rõ từng ý và dành một nhịp nghỉ giữa các phần.'}</p></section>}
-            <section className="overflow-hidden rounded-2xl border border-slate-200 bg-white p-3.5 shadow-sm sm:p-4"><div className="mb-3 flex flex-wrap items-center justify-between gap-2"><h2 className="flex items-center gap-2 text-sm font-bold text-[#19345d]"><Icon name="videocam" className="text-teal-700" />Webcam &amp; theo dõi tư thế</h2></div><div className="relative aspect-video overflow-hidden rounded-xl bg-gradient-to-br from-[#10284e] via-[#164a68] to-[#10a99b]">{isActive ? <><video ref={videoRef} autoPlay muted playsInline className="h-full w-full scale-x-[-1] object-cover" /><canvas ref={poseCanvasRef} className="pointer-events-none absolute inset-0 h-full w-full scale-x-[-1]" /></> : <div className="absolute inset-0 flex flex-col items-center justify-center px-5 text-center text-white"><span className="flex h-14 w-14 items-center justify-center rounded-full border border-white/30 bg-white/10"><Icon name="videocam" className="text-3xl" /></span><p className="mt-3 text-sm font-bold">{status === 'ended' ? 'Phiên thuyết trình đã hoàn tất' : 'Bật camera để bắt đầu'}</p><p className="mt-1 text-xs text-blue-100">Camera và micro chỉ hoạt động sau khi bạn nhấn bắt đầu</p></div>}<div className="pointer-events-none absolute inset-x-[18%] inset-y-[8%] rounded-2xl border border-dashed border-teal-200/80" />{isActive && <><div className="absolute left-3 top-3 rounded-lg bg-[#002045]/75 px-2 py-1 text-[10px] font-bold text-white"><Icon name="visibility" className="mr-1" />Eye contact: {eyeContact}%</div><div className="absolute left-3 top-12 rounded-lg bg-[#002045]/75 px-2 py-1 text-[10px] font-semibold text-teal-100">{posture >= 70 ? 'Tư thế: Cân bằng' : 'Tư thế: Điều chỉnh nhẹ'}</div><div className="absolute bottom-3 right-3 rounded-lg bg-[#002045]/80 px-2 py-1 text-[10px] font-semibold text-white"><Icon name="distance" className="mr-1" />{cameraGuidance}</div></>}<div className="absolute right-3 top-3 z-10 flex items-center gap-1.5"><span className={`rounded-lg px-2 py-1 text-[10px] font-semibold ${isActive ? 'bg-teal-50/95 text-teal-800' : 'bg-white/90 text-slate-500'}`}><Icon name="mic" className="mr-1" />Mic {isActive ? 'ON' : 'OFF'}</span><span className={`rounded-lg px-2 py-1 text-[10px] font-semibold ${isActive ? 'bg-teal-50/95 text-teal-800' : 'bg-white/90 text-slate-500'}`}><Icon name="videocam" className="mr-1" />Cam {isActive ? 'ON' : 'OFF'}</span><button type="button" onClick={pauseSession} disabled={status !== 'live' && status !== 'paused'} aria-label={status === 'paused' ? 'Tiếp tục' : 'Tạm dừng'} className="flex h-7 items-center gap-1 rounded-lg bg-white/95 px-2 text-[10px] font-bold text-slate-700 shadow-sm disabled:opacity-50"><Icon name={status === 'paused' ? 'play_arrow' : 'pause'} />{status === 'paused' ? 'Tiếp tục' : 'Tạm dừng'}</button></div></div>{cameraError && <p role="alert" className="mt-2 text-xs text-amber-700">{cameraError}</p>}{faceMissing && isActive && <p role="alert" aria-live="assertive" className="mt-2 flex items-center gap-2 rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-xs font-semibold text-rose-800"><Icon name="warning" />Cảnh báo: Không thấy người trong khung hình. Hãy quay lại vị trí trước camera.</p>}</section>
+        {/* Collapsible Right Sidebar: In-Call AI Coach & Transcripts */}
+        <AiCoachDrawer
+          isOpen={isAiDrawerOpen}
+          onClose={() => setIsAiDrawerOpen(false)}
+          wordsPerMinute={wordsPerMinute}
+          fillers={fillers}
+          confidence={confidence}
+          voiceLevel={voiceLevel}
+          posture={posture}
+          eyeContact={eyeContact}
+          gestureFeedback={gestureFeedback}
+          gestureCount={gestureCount}
+          transcript={transcript}
+          isActive={isActive}
+          speechError={speechError}
+        />
+      </div>
 
-            <section className="rounded-2xl border border-slate-200 bg-white p-3.5 shadow-sm sm:p-4"><div className="mb-3 flex items-center justify-between"><h2 className="flex items-center gap-2 text-sm font-bold text-[#19345d]"><Icon name="psychology" className="text-teal-700" />Chỉ số AI huấn luyện viên</h2></div><div className="grid grid-cols-2 gap-2"><article className="rounded-xl bg-[#f4f2ff] p-3"><div className="flex items-center justify-between text-[11px] text-slate-500"><span>Tốc độ nói live</span><Icon name="speed" className="text-teal-800" /></div><p className="mt-2 text-2xl font-extrabold text-teal-800">{wordsPerMinute || '—'} <span className="text-xs font-semibold">từ/phút</span></p><p className="text-[10px] text-slate-500">{wordsPerMinute === 0 ? (voiceLevel > 8 ? 'Đang nhận giọng nói; chờ nhận dạng để tính từ/phút' : 'Đang chờ lời nói') : wordsPerMinute < 100 ? 'Chậm, rõ ràng' : wordsPerMinute > 165 ? 'Hơi nhanh' : 'Nhịp nói ổn định'}</p></article><article className={`rounded-xl p-3 ${fillers > 2 ? 'bg-amber-50' : 'bg-[#f1fbf8]'}`}><div className="flex items-center justify-between text-[11px] text-slate-500"><span>Từ đệm</span><Icon name="warning" className="text-amber-600" /></div><p className="mt-2 text-2xl font-extrabold text-amber-700">{fillers} <span className="text-xs font-semibold">lần</span></p><p className="text-[10px] text-amber-700">{FILLER_WORDS.slice(0, 4).map((word) => `“${word}”`).join(', ')}</p></article></div><div className="mt-2 rounded-xl bg-[#f4f2ff] p-3"><div className="flex items-center justify-between text-[11px] text-slate-500"><span className="flex items-center gap-1"><Icon name="graphic_eq" className="text-teal-800" />Âm lượng &amp; độ ổn định giọng</span><span className="font-mono font-bold">{voiceLevel ? `${Math.round(20 * Math.log10(Math.max(0.01, voiceLevel / 100)))} dB` : '— dB'}</span></div><div className="mt-2 flex h-8 items-center gap-1 rounded-lg bg-white px-2">{Array.from({ length: 32 }, (_, index) => <span key={index} className="flex-1 rounded-full bg-teal-700 transition-all" style={{ height: `${voiceLevel ? 5 + ((voiceLevel + index * 13) % 22) : 5 + ((index * 7) % 8)}px`, opacity: voiceLevel ? 0.35 + ((index + voiceLevel) % 6) / 10 : 0.35 }} />)}</div></div><div className="mt-2 grid grid-cols-2 gap-2"><article className="rounded-xl border border-slate-100 p-3"><p className="text-[10px] text-slate-500">Ước lượng thể hiện tự tin</p><p className="mt-1 text-xl font-extrabold text-[#19345d]">{isActive ? (confidence ?? 'Đang phân tích') : '—'}<span className="ml-0.5 text-xs">{confidence === null ? '' : '/100'}</span></p></article><article className="rounded-xl border border-slate-100 p-3"><p className="text-[10px] text-slate-500">Ngôn ngữ cơ thể</p><p className="mt-1 text-sm font-bold text-teal-800">{isActive ? posture >= 70 ? 'Tốt' : 'Cần chỉnh' : '—'}</p><p className="text-[10px] text-slate-400">{gestureFeedback} · {gestureCount} cử chỉ</p></article></div></section>
+      {/* Authentic Google Meet Bottom Toolbar */}
+      <MeetingBottomDock
+        status={status}
+        isMicMuted={isMicMuted}
+        isCameraMuted={isCameraMuted}
+        onToggleMic={toggleMic}
+        onToggleCamera={toggleCamera}
+        onTogglePause={pauseSession}
+        onFinishSession={finishSession}
+        slideNumber={slideNumber}
+        slideCount={slideCount}
+        onPrevSlide={() => setSlideNumber((current) => Math.max(1, current - 1))}
+        onNextSlide={() => setSlideNumber((current) => (slideCount ? Math.min(slideCount, current + 1) : current + 1))}
+        isAiDrawerOpen={isAiDrawerOpen}
+        onToggleAiDrawer={() => setIsAiDrawerOpen((prev) => !prev)}
+        showCaptions={showCaptions}
+        onToggleCaptions={() => setShowCaptions((prev) => !prev)}
+        voiceLevel={voiceLevel}
+      />
 
-          </aside>}
+      {/* Countdown Overlay (Sleek Dark Frosted Glass) */}
+      {startCountdown !== null && status === 'ready' && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4 backdrop-blur-md">
+          <div className="flex h-44 w-44 flex-col items-center justify-center rounded-3xl border border-neutral-700 bg-[#202124] text-white shadow-2xl ring-4 ring-[#8ab4f8]/20">
+            <span className="text-6xl font-black tabular-nums text-[#8ab4f8] animate-pulse">{startCountdown}</span>
+            <span className="mt-2 text-xs font-semibold text-neutral-300 uppercase tracking-widest">Bắt đầu sau</span>
+          </div>
         </div>
-      </main>
+      )}
 
-      {startCountdown !== null && status === 'ready' && <div className="fixed inset-0 z-40 flex items-center justify-center bg-[#0b1f3a]/55 p-4 backdrop-blur-sm"><div className="flex h-40 w-40 flex-col items-center justify-center rounded-full border-4 border-white/80 bg-blue-700 text-white shadow-2xl"><span className="text-6xl font-extrabold tabular-nums">{startCountdown}</span><span className="mt-1 text-xs font-semibold">Bắt đầu sau</span></div></div>}
-      {status === 'ended' && <div className="fixed inset-0 z-50 flex items-center justify-center bg-[#05152c]/45 p-4 backdrop-blur-sm"><section role="dialog" aria-modal="true" aria-labelledby="session-summary-title" className="w-full max-w-lg rounded-2xl bg-white p-5 shadow-2xl sm:p-6"><div className="flex items-start justify-between"><div><p className="text-xs font-bold uppercase tracking-[.12em] text-teal-700">HOÀN TẤT PHẦN TRÌNH BÀY</p><h2 id="session-summary-title" className="mt-1 text-xl font-extrabold text-[#19345d]">Tóm tắt phiên luyện tập</h2></div><button type="button" onClick={() => navigate('/home')} aria-label="Đóng" className="rounded-lg p-2 text-slate-400 hover:bg-slate-100"><Icon name="close" /></button></div><div className="mt-4 grid grid-cols-2 gap-2 sm:grid-cols-4">{[{ label: 'Thời gian', value: clockLabel(seconds) }, { label: 'Tốc độ nói', value: `${wordsPerMinute || 0} WPM` }, { label: 'Từ đệm', value: `${fillers} lần` }, { label: 'Tự tin*', value: confidence === null ? 'Chưa đủ dữ liệu' : `${confidence}/100` }].map((metric) => <div key={metric.label} className="rounded-xl bg-[#f6f7fc] p-3"><p className="text-[10px] text-slate-500">{metric.label}</p><p className="mt-1 text-sm font-extrabold text-[#19345d]">{metric.value}</p></div>)}</div><p className="mt-4 text-xs leading-relaxed text-slate-600">{transcript ? `Bản chép lời: “${transcript}”` : 'Phiên này chưa có bản chép lời. Hãy bật nhận dạng tiếng nói nếu trình duyệt yêu cầu, hoặc nhập nội dung thủ công sau khi chuyển sang AI chấm bài.'}</p><p className="mt-2 text-[10px] text-slate-400">*Chỉ số tham khảo được suy ra từ nhịp nói, âm lượng, tư thế và hướng nhìn.</p><div className="mt-5 flex flex-wrap justify-end gap-2">{recordingUrl && <a href={recordingUrl} download="skillbridge-recording.webm" className="mr-auto inline-flex items-center gap-1 rounded-lg bg-teal-50 px-3 py-2.5 text-xs font-semibold text-teal-800"><Icon name="download" />Tải bản ghi</a>}<button type="button" onClick={() => navigate('/home')} className="rounded-xl bg-slate-100 px-4 py-2.5 text-sm font-semibold text-slate-600">Về trang chủ</button><button type="button" onClick={openAIGReview} className="rounded-xl bg-[#002045] px-4 py-2.5 text-sm font-bold text-white">Chuyển AI chấm bài</button></div></section></div>}
+      {/* Session Completed Summary Modal (Google Meet Ending Dialog Style) */}
+      {status === 'ended' && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4 backdrop-blur-md">
+          <section
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="session-summary-title"
+            className="w-full max-w-lg rounded-3xl border border-neutral-700/80 bg-[#202124] p-6 shadow-2xl text-white"
+          >
+            <div className="flex items-start justify-between">
+              <div>
+                <p className="text-xs font-bold uppercase tracking-[.15em] text-[#8ab4f8]">BẢN TRÌNH BÀY ĐÃ KẾT THÚC</p>
+                <h2 id="session-summary-title" className="mt-1 text-2xl font-black text-white">
+                  Tóm tắt phiên thuyết trình
+                </h2>
+              </div>
+              <button
+                type="button"
+                onClick={() => navigate('/home')}
+                aria-label="Đóng"
+                className="rounded-full p-2 text-neutral-400 hover:bg-[#3c4043] hover:text-white transition-colors"
+              >
+                <Icon name="close" className="text-xl" />
+              </button>
+            </div>
+
+            <div className="mt-5 grid grid-cols-2 gap-2.5 sm:grid-cols-4">
+              {[
+                { label: 'Thời gian', value: clockLabel(seconds), icon: 'timer' },
+                { label: 'Tốc độ', value: `${wordsPerMinute || 0} WPM`, icon: 'speed' },
+                { label: 'Từ đệm', value: `${fillers} lần`, icon: 'warning' },
+                { label: 'Tự tin', value: confidence === null ? '—' : `${confidence}/100`, icon: 'verified' },
+              ].map((metric) => (
+                <div key={metric.label} className="rounded-2xl border border-neutral-700/60 bg-[#282a2d] p-3">
+                  <div className="flex items-center justify-between text-neutral-400">
+                    <span className="text-[10px]">{metric.label}</span>
+                    <Icon name={metric.icon} className="text-xs text-[#8ab4f8]" />
+                  </div>
+                  <p className="mt-1 text-base font-black text-white">{metric.value}</p>
+                </div>
+              ))}
+            </div>
+
+            <div className="mt-4 rounded-2xl border border-neutral-700/60 bg-[#282a2d] p-3 text-xs leading-relaxed text-neutral-300 max-h-32 overflow-y-auto">
+              <span className="font-semibold text-[#8ab4f8]">Bản chép lời ghi nhận: </span>
+              {transcript ? `“${transcript}”` : 'Phiên này chưa nhận diện được tiếng nói rõ ràng. Bạn vẫn có thể chuyển AI chấm bài dựa trên slide.'}
+            </div>
+
+            <p className="mt-3 text-[10px] text-neutral-500">
+              * Điểm số sơ bộ được ước tính từ nhịp nói, âm lượng, tư thế và hướng nhìn thời gian thực.
+            </p>
+
+            <div className="mt-6 flex flex-wrap items-center justify-end gap-2.5">
+              {recordingUrl && (
+                <a
+                  href={recordingUrl}
+                  download="softskill-presentation.webm"
+                  className="mr-auto inline-flex items-center gap-1.5 rounded-full border border-neutral-600 bg-[#3c4043] px-4 py-2 text-xs font-semibold text-white hover:bg-[#4a4e52] transition-colors"
+                >
+                  <Icon name="download" className="text-base" />
+                  Tải bản ghi
+                </a>
+              )}
+              <button
+                type="button"
+                onClick={() => navigate('/home')}
+                className="rounded-full border border-neutral-700 bg-transparent px-4 py-2 text-xs font-semibold text-neutral-300 hover:bg-[#3c4043] hover:text-white transition-colors"
+              >
+                Về trang chủ
+              </button>
+              <button
+                type="button"
+                onClick={openAIGReview}
+                className="rounded-full bg-[#8ab4f8] hover:bg-[#a8c7fa] text-[#202124] px-5 py-2 text-xs font-extrabold shadow-lg active:scale-95 transition-all"
+              >
+                Chuyển AI chấm bài
+              </button>
+            </div>
+          </section>
+        </div>
+      )}
     </div>
   );
 };

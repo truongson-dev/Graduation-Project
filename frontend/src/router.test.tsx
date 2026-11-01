@@ -4,7 +4,6 @@ import { createMemoryRouter } from 'react-router';
 import { RouterProvider } from 'react-router/dom';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { routes } from './router';
-import { clearToken } from './lib/token';
 
 function renderAt(path: string) {
   const queryClient = new QueryClient({
@@ -23,7 +22,6 @@ function renderAt(path: string) {
 
 afterEach(() => {
   cleanup();
-  clearToken();
 });
 
 describe('router', () => {
@@ -43,11 +41,11 @@ describe('router', () => {
     expect(screen.getByLabelText('Nhập lại mật khẩu')).toBeTruthy();
   });
 
-  it('redirects /coach to the login screen when there is no token', async () => {
+  it('redirects /coach to the login screen when there is no authenticated session', async () => {
     const router = renderAt('/coach');
 
     await vi.waitFor(() => expect(router.state.location.pathname).toBe('/'));
-    expect(screen.getByLabelText('Địa chỉ Email')).toBeTruthy();
+    expect(await screen.findByLabelText('Địa chỉ Email')).toBeTruthy();
   });
 
   it('renders the reset password form carried by the e-mail link', () => {

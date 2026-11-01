@@ -2,7 +2,7 @@
 
 use App\Models\User;
 use Database\Seeders\RoleSeeder;
-use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\RateLimiter;
 
 beforeEach(function () {
     $this->seed(RoleSeeder::class);
@@ -87,7 +87,7 @@ it('locks the account for fifteen minutes after five consecutive failures', func
         'password' => 'password',
     ])->assertStatus(423);
 
-    Cache::forget('auth:login:locked:'.hash('sha256', 'a@example.com'));
+    RateLimiter::clear('auth:login:throttle:'.hash('sha256', 'a@example.com'));
 
     $this->postJson('/api/v1/auth/login', [
         'email' => 'a@example.com',

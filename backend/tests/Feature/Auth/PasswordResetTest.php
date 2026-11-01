@@ -97,3 +97,35 @@ it('validates the new password confirmation', function () {
     ])->assertUnprocessable()
         ->assertJsonValidationErrors('password');
 });
+
+it('clears login rate-limiting lockout upon password reset', function () {
+    $user = User::factory()->create([
+        'email' => 'locked@example.com',
+        'password' => 'OldPassword1!',
+    ]);
+
+    foreach (range(1, 5) as $attempt) {
+        $this->postJson('/api/v1/auth/login', [
+            'email' => 'locked@example.com',
+            'password' => 'wrong-pass',
+        ]);
+    }
+
+    $this->postJson('/api/v1/auth/login', [
+        'email' => 'locked@example.com',
+        'password' => 'OldPassword1!',
+    ])->assertStatus(423);
+
+    $token = Password::broker()->createToken($user);
+    $this->postJson('/api/v1/auth/reset-password', [
+        'token' => $token,
+        'email' => 'locked@example.com',
+        'password' => 'BrandNewPassword1!',
+        'password_confirmation' => 'BrandNewPassword1!',
+    ])->assertOk();
+
+    $this->postJson('/api/v1/auth/login', [
+        'email' => 'locked@example.com',
+        'password' => 'BrandNewPassword1!',
+    ])->assertOk();
+});

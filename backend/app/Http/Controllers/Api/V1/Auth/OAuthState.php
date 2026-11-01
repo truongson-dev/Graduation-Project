@@ -78,13 +78,13 @@ final class OAuthState
     /**
      * Build a fingerprint of the client that started the authorization request.
      *
-     * The session identifier binds browser (SPA) flows; the IP address binds
-     * stateless clients such as the mobile application.
+     * The IP address binds both browser (SPA) flows and stateless clients (such
+     * as mobile applications). The session ID cannot be used here because the
+     * callback arrives as a redirection from Google (referer: accounts.google.com),
+     * where Sanctum's stateful SPA middleware intentionally does not execute.
      */
     private static function clientFingerprint(Request $request): string
     {
-        $sessionId = $request->hasSession() ? $request->session()->getId() : '';
-
-        return hash('sha256', $sessionId.'|'.($request->ip() ?? 'unknown'));
+        return hash('sha256', (string) ($request->ip() ?? 'unknown'));
     }
 }

@@ -3,11 +3,12 @@ import { Link, useNavigate } from 'react-router';
 import { useLogout, useMe } from '../lib/auth';
 import { BrandMark } from '../components/BrandMark';
 import { useSidebarCollapsed } from '../lib/sidebar';
+import { UserAvatar } from '../components/Common/UserAvatar';
 
 const navigation = [
   { label: 'Trang chủ', icon: 'home', to: '/home', section: 'home' },
   { label: 'Lộ trình học', icon: 'route', to: '/learning-path', section: 'learning' },
-  { label: 'Luyện phỏng vấn với AI', icon: 'record_voice_over', to: '/practice/setup', section: 'practice' },
+  { label: 'Luyện thuyết trình với AI', icon: 'record_voice_over', to: '/practice/setup', section: 'practice' },
   { label: 'Thành tích', icon: 'emoji_events', to: '/achievements', section: 'achievements' },
   { label: 'Cộng đồng', icon: 'forum', to: '/community', section: 'community' },
 ];
@@ -28,9 +29,6 @@ function Icon({ name, className = '' }: { name: string; className?: string }) {
   return <span aria-hidden="true" className={`material-symbols-outlined ${className}`}>{name}</span>;
 }
 
-function InitialAvatar({ initials, color, size = 'h-10 w-10' }: { initials: string; color: string; size?: string }) {
-  return <div className={`${size} ${color} flex shrink-0 items-center justify-center rounded-full text-xs font-bold`}>{initials}</div>;
-}
 
 export const HomePage: React.FC = () => {
   const navigate = useNavigate();
@@ -66,6 +64,15 @@ export const HomePage: React.FC = () => {
 
         <SidebarNav collapsed={sidebarCollapsed} />
         <div className={`mt-auto border-t border-slate-100 pt-3 ${sidebarCollapsed ? 'flex justify-center' : ''}`}>
+          <div className={`flex items-center gap-2.5 px-2 pb-2 ${sidebarCollapsed ? 'justify-center' : ''}`}>
+            <UserAvatar avatarUrl={user?.avatar_url} name={user?.name} initials={initials} color="bg-blue-100 text-blue-800" size="h-8 w-8" />
+            {!sidebarCollapsed && (
+              <div className="min-w-0 flex-1">
+                <p className="truncate text-xs font-bold text-slate-800">{user?.name ?? 'Học viên'}</p>
+                <p className="truncate text-[10px] text-slate-400">{user?.email ?? ''}</p>
+              </div>
+            )}
+          </div>
           <div className={`border-t border-slate-100 pt-2 ${sidebarCollapsed ? 'flex justify-center' : ''}`}><button type="button" onClick={handleLogout} disabled={logout.isPending} title={sidebarCollapsed ? 'Đăng xuất' : undefined} className={`flex items-center rounded-xl py-2.5 text-[13px] font-semibold text-slate-500 transition hover:bg-rose-50 hover:text-rose-700 disabled:opacity-60 ${sidebarCollapsed ? 'h-9 w-9 justify-center px-0' : 'w-full gap-3 px-3'}`}><Icon name="logout" className="text-[19px]" />{!sidebarCollapsed && 'Đăng xuất'}</button></div>
         </div>
       </aside>
@@ -82,11 +89,11 @@ export const HomePage: React.FC = () => {
             <div className="hidden h-8 border-l border-slate-200 sm:block" />
             <div className="relative">
               <button type="button" onClick={() => setProfileOpen((open) => !open)} aria-expanded={profileOpen} aria-haspopup="menu" aria-label="Thông tin sinh viên và đăng xuất" className="flex items-center gap-2 rounded-xl p-1 transition hover:bg-blue-50">
-                <InitialAvatar initials={initials} color="bg-blue-100 text-blue-800" size="h-8 w-8" />
+                <UserAvatar avatarUrl={user?.avatar_url} name={user?.name} initials={initials} color="bg-blue-100 text-blue-800" size="h-8 w-8" />
                 <span className="hidden max-w-32 truncate text-sm font-semibold text-slate-700 md:block">{user?.name ?? 'Học viên'}</span>
               </button>
               {profileOpen && <div role="menu" className="absolute right-0 top-11 z-50 w-64 overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-xl">
-                <div className="flex items-center gap-3 bg-blue-50/80 p-4"><InitialAvatar initials={initials} color="bg-white text-blue-800 shadow-sm" /><div className="min-w-0"><p className="truncate text-sm font-bold text-slate-800">{user?.name ?? 'Học viên'}</p><p className="truncate text-xs text-slate-500">{user?.email ?? 'Tài khoản sinh viên'}</p></div></div>
+                <div className="flex items-center gap-3 bg-blue-50/80 p-4"><UserAvatar avatarUrl={user?.avatar_url} name={user?.name} initials={initials} color="bg-white text-blue-800 shadow-sm" /><div className="min-w-0"><p className="truncate text-sm font-bold text-slate-800">{user?.name ?? 'Học viên'}</p><p className="truncate text-xs text-slate-500">{user?.email ?? 'Tài khoản sinh viên'}</p></div></div>
                 <div className="p-2"><p className="px-2.5 py-2 text-[11px] font-semibold text-slate-500">Tài khoản học viên SkillBridge</p><button type="button" role="menuitem" onClick={() => { setProfileOpen(false); handleLogout(); }} disabled={logout.isPending} className="flex w-full items-center gap-2 rounded-xl px-2.5 py-2 text-sm font-semibold text-rose-700 hover:bg-rose-50 disabled:opacity-60"><Icon name="logout" className="text-[18px]" />Đăng xuất</button></div>
               </div>}
             </div>

@@ -1,32 +1,35 @@
 import { beforeEach, describe, expect, it } from 'vitest';
-import { consumeGoogleCallbackError, consumeGoogleCallbackToken } from './auth';
-import { clearToken, readToken } from './token';
+import { consumeGoogleCallbackCode, consumeGoogleCallbackError } from './auth';
 
-describe('consumeGoogleCallbackToken', () => {
+describe('OAuth callback helpers', () => {
   beforeEach(() => {
-    clearToken();
     window.history.replaceState({}, '', '/auth/callback');
   });
 
-  it('stores the token from the URL fragment and scrubs it', () => {
-    window.history.replaceState({}, '', '/auth/callback#token=abc123&refresh_token=refresh123&token_type=Bearer');
+  it('reads the exchange code from search params and scrubs it', () => {
+    window.history.replaceState({}, '', '/auth/callback?code=mock_oauth_exchange_code_123');
 
-    expect(consumeGoogleCallbackToken()).toBe('abc123');
-    expect(readToken()).toBe('abc123');
-    expect(window.location.hash).toBe('');
+    expect(consumeGoogleCallbackCode()).toBe('mock_oauth_exchange_code_123');
+    expect(window.location.search).toBe('');
   });
 
-  it('returns null when the fragment has no token', () => {
+  it('returns null when there is no code in search params', () => {
     window.history.replaceState({}, '', '/auth/callback');
 
-    expect(consumeGoogleCallbackToken()).toBeNull();
-    expect(readToken()).toBeNull();
+    expect(consumeGoogleCallbackCode()).toBeNull();
   });
 
-  it('returns a provider cancellation message and scrubs the fragment', () => {
+  it('returns a provider cancellation message and scrubs the URL fragment', () => {
     window.history.replaceState({}, '', '/auth/callback#error=cancelled&message=Bạn+đã+huỷ+đăng+nhập+Google.');
 
     expect(consumeGoogleCallbackError()).toBe('Bạn đã huỷ đăng nhập Google.');
     expect(window.location.hash).toBe('');
+  });
+
+  it('returns a provider cancellation message from query search params', () => {
+    window.history.replaceState({}, '', '/auth/callback?error=cancelled&message=Bạn+đã+huỷ+đăng+nhập+Google.');
+
+    expect(consumeGoogleCallbackError()).toBe('Bạn đã huỷ đăng nhập Google.');
+    expect(window.location.search).toBe('');
   });
 });

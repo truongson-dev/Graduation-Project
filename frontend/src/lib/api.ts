@@ -1,6 +1,5 @@
 import axios from 'axios';
 import { env } from './env';
-import { clearToken, readRefreshToken, readToken, saveTokenPair, wasRemembered } from './token';
 
 /** Root of the backend API, without the version segment. */
 export const API_ROOT = env.VITE_API_URL.replace(/\/+$/, '');
@@ -24,6 +23,7 @@ export const endpoints = {
     resendVerification: '/auth/email/verification-notification',
     googleRedirect: '/auth/social/google/redirect',
     googleCallback: '/auth/social/google/callback',
+    socialExchange: '/auth/social/exchange',
     refresh: '/auth/refresh',
   },
   ai: {
@@ -32,6 +32,7 @@ export const endpoints = {
     conversations: '/ai/conversations',
     conversationMessages: (conversationId: string | number) =>
       `/ai/conversations/${conversationId}/messages`,
+    presentationEvaluate: '/ai/presentation/evaluate',
   },
 } as const;
 
@@ -59,30 +60,6 @@ export const api = axios.create({
 });
 
 let csrfBootstrap: Promise<unknown> | null = null;
-let refreshRequest: Promise<string | null> | null = null;
-
-async function refreshAccessToken(): Promise<string | null> {
-  const refreshToken = readRefreshToken();
-  if (!refreshToken) return null;
-
-  refreshRequest ??= api
-    .post<{ data: { token: string; refresh_token: string } }>(endpoints.auth.refresh, {
-      refresh_token: refreshToken,
-    })
-    .then(({ data }) => {
-      saveTokenPair(data.data.token, data.data.refresh_token, wasRemembered());
-      return data.data.token;
-    })
-    .catch(() => {
-      clearToken();
-      return null;
-    })
-    .finally(() => {
-      refreshRequest = null;
-    });
-
-  return refreshRequest;
-}
 
 /** Fetch the XSRF cookie pair when it is missing; deduplicate parallel writes. */
 export function ensureCsrfCookie(force = false): Promise<unknown> {
@@ -109,7 +86,7 @@ export function readCookie(name: string): string | null {
   return row ? decodeURIComponent(row.slice(prefix.length)) : null;
 }
 
-/** Attach the token, bootstrapping the CSRF cookie before writes. */
+/** Bootstrap the CSRF cookie before non-idempotent writes. */
 api.interceptors.request.use(async (config) => {
   const method = (config.method ?? 'get').toUpperCase();
 
@@ -117,18 +94,15 @@ api.interceptors.request.use(async (config) => {
     await ensureCsrfCookie();
   }
 
-  const token = readToken();
-  if (token) config.headers.Authorization = `Bearer ${token}`;
-
   return config;
 });
 
-/** Refresh a stale CSRF pair once; drop the token when the API rejects it. */
+/** Refresh a stale CSRF pair once if Sanctum returns 419. */
 api.interceptors.response.use(
   (response) => response,
   async (error) => {
     const config = error?.config as
-      | { __csrfRetried?: boolean; __authRetried?: boolean; url?: string; headers?: Record<string, unknown> }
+      | { __csrfRetried?: boolean; url?: string; headers?: Record<string, unknown> }
       | undefined;
 
     if (error?.response?.status === 419 && config && !config.__csrfRetried) {
@@ -136,23 +110,6 @@ api.interceptors.response.use(
       csrfBootstrap = null;
       await ensureCsrfCookie(true);
       return api.request(error.config);
-    }
-
-    if (error?.response?.status === 401) {
-      const shouldSkipRefresh = config?.url?.includes(endpoints.auth.login) ||
-        config?.url?.includes(endpoints.auth.refresh);
-
-      if (config && !config.__authRetried && !shouldSkipRefresh) {
-        config.__authRetried = true;
-        const token = await refreshAccessToken();
-
-        if (token) {
-          config.headers = { ...config.headers, Authorization: `Bearer ${token}` };
-          return api.request(error.config);
-        }
-      }
-
-      if (config?.__authRetried) clearToken();
     }
 
     return Promise.reject(error);

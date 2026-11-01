@@ -9,9 +9,10 @@ use App\Models\User;
 use Illuminate\Auth\Events\PasswordReset;
 use Illuminate\Contracts\Auth\CanResetPassword as CanResetPasswordContract;
 use Illuminate\Http\JsonResponse;
-use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Password;
+use Illuminate\Support\Facades\RateLimiter;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
@@ -36,7 +37,8 @@ class ResetPasswordController extends Controller
                 ])->save();
 
                 $tokens->revokeAllForUser($user);
-                $loginKey = hash('sha256', $user->email);
+                $loginKey = hash('sha256', Str::lower(trim($user->email)));
+                RateLimiter::clear('auth:login:throttle:'.$loginKey);
                 Cache::forget('auth:login:locked:'.$loginKey);
                 Cache::forget('auth:login:attempts:'.$loginKey);
                 $this->forgetSessions($user);

@@ -54,7 +54,7 @@
               "_postman_previewlanguage": "json",
               "header": [{ "key": "Content-Type", "value": "application/json" }],
               "cookie": [],
-              "body": "{\n  \"data\": {\n    \"user\": {\n      \"id\": 1,\n      \"name\": \"Nguyen Van A\",\n      \"email\": \"user@example.com\",\n      \"email_verified_at\": null,\n      \"avatar_url\": null,\n      \"roles\": [\"student\"],\n      \"created_at\": \"2026-10-21T12:00:00+07:00\"\n    },\n    \"token\": \"1|mockPlainTextTokenAbCdEf123456\",\n    \"token_type\": \"Bearer\"\n  }\n}"
+              "body": "{\n  \"data\": {\n    \"user\": {\n      \"id\": 1,\n      \"name\": \"Nguyen Van A\",\n      \"email\": \"user@example.com\",\n      \"email_verified_at\": null,\n      \"avatar_url\": null,\n      \"roles\": [\"student\"],\n      \"created_at\": \"2026-10-21T12:00:00+07:00\"\n    },\n    \"token\": \"1|ssk_mockPlainTextTokenAbCdEf123456\",\n    \"refresh_token\": \"mockRefreshTokenAbCdEf1234567890123456789012345678901234567890123456789012345678901234\",\n    \"token_type\": \"Bearer\",\n    \"expires_in\": 900\n  }\n}"
             },
             {
               "name": "422 Validation",
@@ -105,7 +105,7 @@
               "_postman_previewlanguage": "json",
               "header": [{ "key": "Content-Type", "value": "application/json" }],
               "cookie": [],
-              "body": "{\n  \"data\": {\n    \"user\": {\n      \"id\": 1,\n      \"name\": \"Nguyen Van A\",\n      \"email\": \"user@example.com\",\n      \"email_verified_at\": \"2026-10-21T12:00:00+07:00\",\n      \"avatar_url\": \"https://i.pravatar.cc/150?img=12\",\n      \"roles\": [\"student\"],\n      \"created_at\": \"2026-10-01T09:00:00+07:00\"\n    },\n    \"token\": \"1|mockPlainTextTokenAbCdEf123456\",\n    \"token_type\": \"Bearer\"\n  }\n}"
+              "body": "{\n  \"data\": {\n    \"user\": {\n      \"id\": 1,\n      \"name\": \"Nguyen Van A\",\n      \"email\": \"user@example.com\",\n      \"email_verified_at\": \"2026-10-21T12:00:00+07:00\",\n      \"avatar_url\": \"https://i.pravatar.cc/150?img=12\",\n      \"roles\": [\"student\"],\n      \"created_at\": \"2026-10-01T09:00:00+07:00\"\n    },\n    \"token\": \"1|ssk_mockPlainTextTokenAbCdEf123456\",\n    \"refresh_token\": \"mockRefreshTokenAbCdEf1234567890123456789012345678901234567890123456789012345678901234\",\n    \"token_type\": \"Bearer\",\n    \"expires_in\": 900\n  }\n}"
             },
             {
               "name": "422 Sai thông tin",
@@ -115,6 +115,42 @@
               "header": [{ "key": "Content-Type", "value": "application/json" }],
               "cookie": [],
               "body": "{\n  \"message\": \"Thông tin đăng nhập không chính xác.\",\n  \"errors\": {\n    \"email\": [\"Thông tin đăng nhập không chính xác.\"]\n  }\n}"
+            }
+          ]
+        },
+        {
+          "name": "Refresh Token",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"refresh_token\": \"{{refreshToken}}\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/auth/refresh",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "auth", "refresh"]
+            }
+          },
+          "response": [
+            {
+              "name": "200 OK",
+              "status": "OK",
+              "code": 200,
+              "_postman_previewlanguage": "json",
+              "header": [{ "key": "Content-Type", "value": "application/json" }],
+              "cookie": [],
+              "body": "{\n  \"data\": {\n    \"token\": \"2|ssk_mockNewPlainTextToken789XyZ\",\n    \"refresh_token\": \"mockNewRefreshTokenAbCdEf12345678901234567890123456789012345678901234567890\",\n    \"token_type\": \"Bearer\",\n    \"expires_in\": 900\n  }\n}"
+            },
+            {
+              "name": "401 Hết hạn",
+              "status": "Unauthorized",
+              "code": 401,
+              "_postman_previewlanguage": "json",
+              "header": [{ "key": "Content-Type", "value": "application/json" }],
+              "cookie": [],
+              "body": "{\n  \"message\": \"Phiên đăng nhập đã hết hạn. Vui lòng đăng nhập lại.\"\n}"
             }
           ]
         },
@@ -543,6 +579,7 @@
   "variable": [
     { "key": "baseUrl", "value": "http://localhost:8000" },
     { "key": "token", "value": "" },
+    { "key": "refreshToken", "value": "" },
     { "key": "email", "value": "user@example.com" },
     { "key": "password", "value": "Password123" },
     { "key": "resetToken", "value": "" },

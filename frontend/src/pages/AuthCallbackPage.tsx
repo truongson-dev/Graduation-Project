@@ -1,27 +1,40 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Link, useNavigate } from 'react-router';
-import { consumeGoogleCallbackError, consumeGoogleCallbackToken } from '../lib/auth';
+import { consumeGoogleCallbackCode, consumeGoogleCallbackError, getApiError, useSocialExchange } from '../lib/auth';
 
 export const AuthCallbackPage: React.FC = () => {
   const navigate = useNavigate();
   const [error, setError] = useState<string | null>(null);
+  const exchange = useSocialExchange();
+  const exchangeStarted = useRef(false);
 
   useEffect(() => {
+    if (exchangeStarted.current) return;
+
     const callbackError = consumeGoogleCallbackError();
     if (callbackError) {
       setError(callbackError);
       return;
     }
 
-    const token = consumeGoogleCallbackToken();
+    const code = consumeGoogleCallbackCode();
 
-    if (!token) {
+    if (!code) {
       setError('Không tìm thấy mã đăng nhập Google trong liên kết trả về.');
       return;
     }
 
-    navigate('/home', { replace: true });
-  }, [navigate]);
+    exchangeStarted.current = true;
+
+    exchange
+      .mutateAsync(code)
+      .then(() => {
+        navigate('/home', { replace: true });
+      })
+      .catch((err) => {
+        setError(getApiError(err).message);
+      });
+  }, [exchange, navigate]);
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-[#f8fafc] px-4">

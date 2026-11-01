@@ -56,14 +56,20 @@ class ChatController extends Controller
 
             try {
                 foreach ($stream as $event) {
+                    if (connection_aborted()) {
+                        break;
+                    }
+
                     $this->emit($event->toArray());
                 }
 
-                $this->emit([
-                    'type' => 'done',
-                    'conversation_id' => $stream->conversationId ?? $conversationId,
-                    'assistant_message_id' => $stream->assistantMessageId,
-                ]);
+                if (! connection_aborted()) {
+                    $this->emit([
+                        'type' => 'done',
+                        'conversation_id' => $stream->conversationId ?? $conversationId,
+                        'assistant_message_id' => $stream->assistantMessageId,
+                    ]);
+                }
             } catch (Throwable $exception) {
                 report($exception);
 

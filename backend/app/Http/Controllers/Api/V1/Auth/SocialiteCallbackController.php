@@ -10,6 +10,8 @@ use GuzzleHttp\Exception\GuzzleException;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
 use Laravel\Socialite\Socialite;
@@ -96,70 +98,72 @@ class SocialiteCallbackController extends Controller
      */
     private function resolveUser(SocialiteUser $googleUser, string $googleId, string $email): User
     {
-        $avatar = $googleUser->getAvatar();
-        $avatarUrl = is_string($avatar) && $avatar !== '' ? $avatar : null;
-        $providerVerified = $this->isProviderVerified($googleUser);
+        return DB::transaction(function () use ($googleUser, $googleId, $email): User {
+            $avatar = $googleUser->getAvatar();
+            $avatarUrl = is_string($avatar) && $avatar !== '' ? $avatar : null;
+            $providerVerified = $this->isProviderVerified($googleUser);
 
-        $user = User::query()->where('google_id', $googleId)->first();
+            $user = User::query()->where('google_id', $googleId)->lockForUpdate()->first();
 
-        if ($user instanceof User) {
-            $user->forceFill(['avatar_url' => $user->avatar_url ?? $avatarUrl])->save();
+            if ($user instanceof User) {
+                $user->forceFill(['avatar_url' => $avatarUrl ?? $user->avatar_url])->save();
 
-            return $user;
-        }
-
-        $existing = User::query()->where('email', $email)->first();
-
-        if ($existing instanceof User) {
-            // Only an address Google has verified may take over the account
-            // that already owns it; otherwise the identity could be used to
-            // sign in as somebody else.
-            if (! $providerVerified) {
-                throw ValidationException::withMessages([
-                    'email' => 'Tài khoản Google chưa xác minh email này.',
-                ]);
+                return $user;
             }
 
-            if ($existing->google_id !== null && $existing->google_id !== $googleId) {
-                throw ValidationException::withMessages([
-                    'email' => 'Email đã được liên kết với một tài khoản Google khác.',
+            $existing = User::query()->where('email', $email)->lockForUpdate()->first();
+
+            if ($existing instanceof User) {
+                // Only an address Google has verified may take over the account
+                // that already owns it; otherwise the identity could be used to
+                // sign in as somebody else.
+                if (! $providerVerified) {
+                    throw ValidationException::withMessages([
+                        'email' => 'Tài khoản Google chưa xác minh email này.',
+                    ]);
+                }
+
+                if ($existing->google_id !== null && $existing->google_id !== $googleId) {
+                    throw ValidationException::withMessages([
+                        'email' => 'Email đã được liên kết với một tài khoản Google khác.',
+                    ]);
+                }
+
+                $existing->forceFill([
+                    'google_id' => $googleId,
+                    'avatar_url' => $avatarUrl ?? $existing->avatar_url,
                 ]);
+
+                if (! $existing->hasVerifiedEmail()) {
+                    $existing->email_verified_at = now();
+                }
+
+                $existing->save();
+
+                return $existing;
             }
 
-            $existing->forceFill([
+            $name = $googleUser->getName();
+            $name = is_string($name) && $name !== '' ? $name : Str::before($email, '@');
+
+            $user = User::create([
+                'name' => $name,
+                'email' => $email,
+                'password' => Str::random(40),
                 'google_id' => $googleId,
-                'avatar_url' => $existing->avatar_url ?? $avatarUrl,
+                'avatar_url' => $avatarUrl,
             ]);
 
-            if (! $existing->hasVerifiedEmail()) {
-                $existing->email_verified_at = now();
+            $user->assignDefaultRole();
+
+            if ($providerVerified) {
+                $user->forceFill(['email_verified_at' => now()])->save();
+            } else {
+                $user->sendEmailVerificationNotification();
             }
 
-            $existing->save();
-
-            return $existing;
-        }
-
-        $name = $googleUser->getName();
-        $name = is_string($name) && $name !== '' ? $name : Str::before($email, '@');
-
-        $user = User::create([
-            'name' => $name,
-            'email' => $email,
-            'password' => Str::random(40),
-            'google_id' => $googleId,
-            'avatar_url' => $avatarUrl,
-        ]);
-
-        $user->assignDefaultRole();
-
-        if ($providerVerified) {
-            $user->forceFill(['email_verified_at' => now()])->save();
-        } else {
-            $user->sendEmailVerificationNotification();
-        }
-
-        return $user;
+            return $user;
+        });
     }
 
     /**
@@ -173,30 +177,39 @@ class SocialiteCallbackController extends Controller
     }
 
     /**
-     * Issue a token, or hand it to the frontend through the URL fragment.
+     * Issue a token for API clients, or redirect the SPA with an exchange code.
      */
     private function oauthResponse(Request $request, User $user, ?string $deviceName): JsonResponse|RedirectResponse
     {
         $user->loadMissing('roles');
 
-        $pair = app(AuthTokenService::class)->issue($user, $deviceName ?: 'google');
-
+        // Token mode for mobile / API clients.
         if ($request->expectsJson() || filled($deviceName)) {
+            $pair = app(AuthTokenService::class)->issue($user, $deviceName ?: 'google');
+
             return $this->tokenResponse($user, $pair);
         }
 
         $frontend = rtrim((string) config('app.frontend_url'), '/');
 
         if ($frontend === '') {
+            $pair = app(AuthTokenService::class)->issue($user, 'google');
+
             return $this->tokenResponse($user, $pair);
         }
 
-        return redirect()->away($frontend.'/auth/callback#'.http_build_query([
-            'token' => $pair['token'],
-            'refresh_token' => $pair['refresh_token'],
-            'expires_in' => $pair['expires_in'],
-            'token_type' => $pair['token_type'],
-        ]));
+        // SPA mode: generate a short-lived one-time exchange code so the
+        // frontend can POST it back from its own origin where Sanctum's
+        // stateful middleware is active and a session can be created.
+        $code = Str::random(40);
+
+        Cache::put(
+            'auth:oauth:exchange:'.hash('sha256', $code),
+            $user->getKey(),
+            now()->addMinutes(2),
+        );
+
+        return redirect()->away($frontend.'/auth/callback?code='.$code);
     }
 
     /**
@@ -224,7 +237,7 @@ class SocialiteCallbackController extends Controller
         string $code,
         string $message,
         ?array $intent = null,
-    ): JsonResponse|RedirectResponse {
+    ): RedirectResponse {
         if (! $request->expectsJson() && ! filled($intent['device_name'] ?? null)) {
             $frontend = rtrim((string) config('app.frontend_url'), '/');
 

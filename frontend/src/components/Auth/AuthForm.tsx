@@ -9,7 +9,6 @@ import { FastAuthButtons } from './FastAuthButtons';
 import { InputField } from './InputField';
 import { api, endpoints, getApiError } from '../../lib/api';
 import { useLogin, useRegister } from '../../lib/auth';
-import { wasRemembered } from '../../lib/token';
 import { PASSWORD_REQUIREMENTS, passwordSchema } from '../../lib/password';
 
 const loginSchema = z.object({
@@ -71,7 +70,7 @@ export const AuthForm: React.FC<AuthFormProps> = ({ onForgotPassword }) => {
 
   const loginForm = useForm<LoginValues>({
     resolver: zodResolver(loginSchema),
-    defaultValues: { email: '', password: '', rememberMe: wasRemembered() },
+    defaultValues: { email: '', password: '', rememberMe: false },
   });
 
   const registerForm = useForm<RegisterValues>({

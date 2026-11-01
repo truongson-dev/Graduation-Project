@@ -14,28 +14,40 @@ use Laravel\Sanctum\TransientToken;
 class LogoutController extends Controller
 {
     /**
-     * Revoke the current access token or invalidate the current session.
+     * Revoke the current access token, refresh token family, or invalidate the current session.
      */
     public function __invoke(Request $request, AuthTokenService $tokens): Response
     {
-        $user = $request->user();
+        $user = $request->user('sanctum') ?? $request->user();
+        $refreshToken = $request->input('refresh_token');
+        $hasRevokedRefreshToken = false;
 
-        abort_unless($user instanceof User, 401);
-
-        /** @var PersonalAccessToken|TransientToken|null $accessToken */
-        $accessToken = $user->currentAccessToken();
-
-        if ($accessToken instanceof PersonalAccessToken) {
-            $tokens->revokeForAccessToken($user, $accessToken);
-            $accessToken->delete();
+        if (is_string($refreshToken) && filled($refreshToken)) {
+            $hasRevokedRefreshToken = $tokens->revokeByRefreshToken($refreshToken);
         }
 
-        if ($request->hasSession()) {
-            Auth::guard('web')->logout();
-            $request->session()->invalidate();
-            $request->session()->regenerateToken();
+        if ($user instanceof User) {
+            /** @var PersonalAccessToken|TransientToken|null $accessToken */
+            $accessToken = $user->currentAccessToken();
+
+            if ($accessToken instanceof PersonalAccessToken) {
+                $tokens->revokeForAccessToken($user, $accessToken);
+                $accessToken->delete();
+            }
+
+            if ($request->hasSession()) {
+                Auth::guard('web')->logout();
+                $request->session()->invalidate();
+                $request->session()->regenerateToken();
+            }
+
+            return response()->noContent();
         }
 
-        return response()->noContent();
+        if ($hasRevokedRefreshToken) {
+            return response()->noContent();
+        }
+
+        abort(401);
     }
 }

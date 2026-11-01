@@ -10,7 +10,6 @@ import { PresentationReviewPage } from './pages/PresentationReviewPage';
 import { PracticeSetupPage } from './pages/PracticeSetupPage';
 import { PracticeLivePage } from './pages/PracticeLivePage';
 import { ResetPasswordPage } from './pages/ResetPasswordPage';
-import { readToken } from './lib/token';
 import { useMe } from './lib/auth';
 
 function LoadingScreen() {
@@ -27,16 +26,12 @@ function RequireAuth({ children }: { children: ReactNode }) {
   const location = useLocation();
   const me = useMe();
 
-  if (!readToken()) {
-    return <Navigate to="/" replace state={{ from: location.pathname }} />;
-  }
-
   if (me.isPending) {
     return <LoadingScreen />;
   }
 
-  if (me.isError) {
-    return <Navigate to="/" replace />;
+  if (me.isError || !me.data) {
+    return <Navigate to="/" replace state={{ from: location.pathname }} />;
   }
 
   return <>{children}</>;

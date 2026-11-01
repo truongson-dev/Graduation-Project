@@ -35,7 +35,7 @@ trait HandlesAuthentication
             ], $status);
         }
 
-        Auth::login($user);
+        Auth::login($user, $request->boolean('remember'));
         $request->session()->regenerate();
 
         return response()->json([

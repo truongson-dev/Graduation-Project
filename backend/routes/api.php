@@ -4,15 +4,17 @@ use App\Http\Controllers\Api\V1\Ai\ChatController;
 use App\Http\Controllers\Api\V1\Ai\ConversationIndexController;
 use App\Http\Controllers\Api\V1\Ai\ConversationMessagesController;
 use App\Http\Controllers\Api\V1\Ai\FeedbackController;
+use App\Http\Controllers\Api\V1\Ai\PresentationEvaluationController;
 use App\Http\Controllers\Api\V1\Auth\ForgotPasswordController;
 use App\Http\Controllers\Api\V1\Auth\LoginController;
 use App\Http\Controllers\Api\V1\Auth\LogoutController;
 use App\Http\Controllers\Api\V1\Auth\MeController;
-use App\Http\Controllers\Api\V1\Auth\RegisterController;
 use App\Http\Controllers\Api\V1\Auth\RefreshTokenController;
+use App\Http\Controllers\Api\V1\Auth\RegisterController;
 use App\Http\Controllers\Api\V1\Auth\ResetPasswordController;
 use App\Http\Controllers\Api\V1\Auth\SendEmailVerificationController;
 use App\Http\Controllers\Api\V1\Auth\SocialiteCallbackController;
+use App\Http\Controllers\Api\V1\Auth\SocialiteExchangeController;
 use App\Http\Controllers\Api\V1\Auth\SocialiteRedirectController;
 use App\Http\Controllers\Api\V1\Auth\VerifyEmailController;
 use App\Http\Middleware\EnsureAiConfigured;
@@ -34,7 +36,7 @@ Route::prefix('v1/auth')->group(function (): void {
         ->name('api.v1.auth.login');
 
     Route::post('/refresh', RefreshTokenController::class)
-        ->middleware('throttle:social')
+        ->middleware('throttle:refresh')
         ->name('api.v1.auth.refresh');
 
     Route::post('/forgot-password', ForgotPasswordController::class)
@@ -61,9 +63,16 @@ Route::prefix('v1/auth')->group(function (): void {
         ->middleware('throttle:social')
         ->name('api.v1.auth.social.callback');
 
+    Route::post('/social/exchange', SocialiteExchangeController::class)
+        ->middleware('throttle:social')
+        ->name('api.v1.auth.social.exchange');
+
+    Route::post('/logout', LogoutController::class)
+        ->middleware('throttle:api')
+        ->name('api.v1.auth.logout');
+
     Route::middleware('auth:sanctum')->group(function (): void {
         Route::get('/me', MeController::class)->name('api.v1.auth.me');
-        Route::post('/logout', LogoutController::class)->name('api.v1.auth.logout');
     });
 });
 
@@ -75,6 +84,10 @@ Route::prefix('v1/ai')->middleware(['auth:sanctum', EnsureAiConfigured::class])-
     Route::post('/feedback', FeedbackController::class)
         ->middleware('throttle:ai-feedback')
         ->name('api.v1.ai.feedback');
+
+    Route::post('/presentation/evaluate', PresentationEvaluationController::class)
+        ->middleware('throttle:ai-feedback')
+        ->name('api.v1.ai.presentation.evaluate');
 
     Route::get('/conversations', ConversationIndexController::class)
         ->name('api.v1.ai.conversations.index');

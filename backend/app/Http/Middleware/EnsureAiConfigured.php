@@ -15,7 +15,10 @@ class EnsureAiConfigured
      */
     public function handle(Request $request, Closure $next): Response
     {
-        if (blank(config('ai.providers.gemini.key'))) {
+        $provider = (string) config('ai.default', 'gemini');
+        $apiKey = config("ai.providers.{$provider}.key");
+
+        if (blank($apiKey)) {
             return response()->json([
                 'message' => 'Trợ lý AI chưa được cấu hình. Vui lòng liên hệ quản trị viên.',
             ], 503);

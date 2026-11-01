@@ -73,7 +73,7 @@ export const LearningPathPage: React.FC = () => {
       {[
         { label: 'Trang chủ', icon: 'home', to: '/home' },
         { label: 'Lộ trình học', icon: 'route', to: '/learning-path' },
-        { label: 'Luyện phỏng vấn với AI', icon: 'record_voice_over', to: '/practice/setup' },
+        { label: 'Luyện thuyết trình với AI', icon: 'record_voice_over', to: '/practice/setup' },
         { label: 'Thành tích', icon: 'emoji_events', to: '/achievements' },
         { label: 'Cộng đồng', icon: 'forum', to: '/community' },
       ].map((item) => <div key={item.to} className={`relative flex w-full items-center ${sidebarCollapsed ? '' : 'gap-1'}`}>

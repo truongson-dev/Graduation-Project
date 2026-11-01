@@ -1,5 +1,4 @@
 import { apiUrl, endpoints, ensureCsrfCookie, readCookie } from './api';
-import { clearToken, readToken } from './token';
 
 /** One server-sent event frame from POST /v1/ai/chat. */
 export interface SseFrame {
@@ -58,7 +57,7 @@ export interface ChatStreamOptions {
   onFrame: (frame: SseFrame) => void;
 }
 
-/** Stream one coach reply. Session cookies and the bearer token both travel. */
+/** Stream one coach reply. Session cookies travel with credentials: 'include'. */
 export async function streamCoachChat(options: ChatStreamOptions): Promise<void> {
   await ensureCsrfCookie();
 
@@ -67,10 +66,7 @@ export async function streamCoachChat(options: ChatStreamOptions): Promise<void>
     Accept: 'text/event-stream',
   };
 
-  const token = readToken();
   const xsrf = readCookie('XSRF-TOKEN');
-
-  if (token) headers.Authorization = `Bearer ${token}`;
   if (xsrf) headers['X-XSRF-TOKEN'] = xsrf;
 
   const response = await fetch(apiUrl(endpoints.ai.chat), {
@@ -83,10 +79,6 @@ export async function streamCoachChat(options: ChatStreamOptions): Promise<void>
     }),
     signal: options.signal,
   });
-
-  if (response.status === 401) {
-    clearToken();
-  }
 
   if (!response.ok || !response.body) {
     throw new Error(await readStreamError(response));
