@@ -2,6 +2,7 @@
 
 namespace App\Auth;
 
+use App\Data\Auth\AuthTokenData;
 use App\Models\AuthRefreshToken;
 use App\Models\User;
 use Illuminate\Support\Facades\DB;
@@ -16,24 +17,20 @@ class AuthTokenService
 
     /**
      * Issue an access and refresh token pair for a new sign-in session.
-     *
-     * @return array{token: string, refresh_token: string, token_type: string, expires_in: int}
      */
-    public function issue(User $user, string $deviceName): array
+    public function issue(User $user, string $deviceName): AuthTokenData
     {
-        return DB::transaction(function () use ($user, $deviceName): array {
+        return DB::transaction(function () use ($user, $deviceName): AuthTokenData {
             return $this->issuePair($user, $deviceName, (string) Str::uuid());
         });
     }
 
     /**
      * Rotate a refresh token and revoke the previous access token in its family.
-     *
-     * @return array{token: string, refresh_token: string, token_type: string, expires_in: int}|null
      */
-    public function rotate(string $plainTextToken): ?array
+    public function rotate(string $plainTextToken): ?AuthTokenData
     {
-        return DB::transaction(function () use ($plainTextToken): ?array {
+        return DB::transaction(function () use ($plainTextToken): ?AuthTokenData {
             $refreshToken = AuthRefreshToken::query()
                 ->where('token_hash', hash('sha256', $plainTextToken))
                 ->lockForUpdate()
@@ -122,10 +119,8 @@ class AuthTokenService
 
     /**
      * Create a fresh pair of opaque credentials for an existing token family.
-     *
-     * @return array{token: string, refresh_token: string, token_type: string, expires_in: int}
      */
-    private function issuePair(User $user, string $deviceName, string $familyId): array
+    private function issuePair(User $user, string $deviceName, string $familyId): AuthTokenData
     {
         $plainTextRefreshToken = Str::random(80);
         $minutes = (int) (config('sanctum.expiration') ?: self::ACCESS_TOKEN_MINUTES);
@@ -144,12 +139,12 @@ class AuthTokenService
             now()->addMinutes($minutes),
         );
 
-        return [
-            'token' => $accessToken->plainTextToken,
-            'refresh_token' => $plainTextRefreshToken,
-            'token_type' => 'Bearer',
-            'expires_in' => $minutes * 60,
-        ];
+        return new AuthTokenData(
+            token: (string) $accessToken->plainTextToken,
+            refresh_token: $plainTextRefreshToken,
+            token_type: 'Bearer',
+            expires_in: $minutes * 60,
+        );
     }
 
     /**

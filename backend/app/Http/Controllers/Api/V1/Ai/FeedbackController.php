@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Api\V1\Ai;
 
 use App\Ai\Agents\AnswerGrader;
+use App\Data\Ai\AnswerFeedbackData;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Ai\GradeAnswerRequest;
 use Illuminate\Http\JsonResponse;
@@ -44,26 +45,8 @@ class FeedbackController extends Controller
         $feedback = $response->structured;
 
         return response()->json([
-            'data' => [
-                'score' => (int) ($feedback['score'] ?? 0),
-                'summary' => (string) ($feedback['summary'] ?? ''),
-                'strengths' => $this->strings($feedback['strengths'] ?? []),
-                'improvements' => $this->strings($feedback['improvements'] ?? []),
-            ],
+            'data' => AnswerFeedbackData::fromStructured($feedback)->toArray(),
         ]);
-    }
-
-    /**
-     * Normalize a structured list value into a list of strings.
-     *
-     * @return array<int, string>
-     */
-    private function strings(mixed $value): array
-    {
-        return array_values(array_map(
-            static fn (mixed $item): string => (string) $item,
-            is_array($value) ? $value : [],
-        ));
     }
 
     /**

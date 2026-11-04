@@ -315,28 +315,7 @@
                                     "properties": {
                                         "data": {
                                             "type": "object",
-                                            "properties": {
-                                                "score": {
-                                                    "type": "integer"
-                                                },
-                                                "summary": {
-                                                    "type": "string"
-                                                },
-                                                "strengths": {
-                                                    "type": "array",
-                                                    "items": {}
-                                                },
-                                                "improvements": {
-                                                    "type": "array",
-                                                    "items": {}
-                                                }
-                                            },
-                                            "required": [
-                                                "score",
-                                                "summary",
-                                                "strengths",
-                                                "improvements"
-                                            ]
+                                            "additionalProperties": {}
                                         }
                                     },
                                     "required": [
@@ -487,27 +466,85 @@
                                                     "type": "object",
                                                     "properties": {
                                                         "user": {
-                                                            "$ref": "#/components/schemas/UserResource"
-                                                        },
-                                                        "token": {
-                                                            "type": "string"
-                                                        },
-                                                        "token_type": {
-                                                            "type": "string",
-                                                            "const": "Bearer"
+                                                            "anyOf": [
+                                                                {
+                                                                    "$ref": "#/components/schemas/UserResource"
+                                                                },
+                                                                {}
+                                                            ]
                                                         }
                                                     },
                                                     "required": [
-                                                        "user",
-                                                        "token",
-                                                        "token_type"
-                                                    ]
+                                                        "user"
+                                                    ],
+                                                    "additionalProperties": {}
                                                 }
                                             },
                                             "required": [
                                                 "data"
                                             ]
                                         }
+                                    ]
+                                }
+                            }
+                        }
+                    },
+                    "423": {
+                        "description": "",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "message": {
+                                            "anyOf": [
+                                                {
+                                                    "type": "string"
+                                                },
+                                                {
+                                                    "type": "string",
+                                                    "enum": [
+                                                        "T\u00e0i kho\u1ea3n \u0111\u00e3 b\u1ecb kh\u00f3a t\u1ea1m th\u1eddi. Vui l\u00f2ng th\u1eed l\u1ea1i sau 15 ph\u00fat."
+                                                    ]
+                                                }
+                                            ]
+                                        },
+                                        "errors": {
+                                            "type": "object",
+                                            "properties": {
+                                                "email": {
+                                                    "type": "array",
+                                                    "prefixItems": [
+                                                        {
+                                                            "anyOf": [
+                                                                {
+                                                                    "type": "string"
+                                                                },
+                                                                {
+                                                                    "type": "string",
+                                                                    "enum": [
+                                                                        "T\u00e0i kho\u1ea3n \u0111\u00e3 b\u1ecb kh\u00f3a t\u1ea1m th\u1eddi. Vui l\u00f2ng th\u1eed l\u1ea1i sau 15 ph\u00fat."
+                                                                    ]
+                                                                }
+                                                            ]
+                                                        }
+                                                    ],
+                                                    "minItems": 1,
+                                                    "maxItems": 1
+                                                }
+                                            },
+                                            "required": [
+                                                "email"
+                                            ]
+                                        },
+                                        "retry_after_seconds": {
+                                            "type": "integer"
+                                        }
+                                    },
+                                    "required": [
+                                        "message",
+                                        "errors",
+                                        "retry_after_seconds"
                                     ]
                                 }
                             }
@@ -523,18 +560,52 @@
         "/v1/auth/logout": {
             "post": {
                 "operationId": "v1.auth.logout",
-                "summary": "Revoke the current access token or invalidate the current session",
+                "summary": "Revoke the current access token, refresh token family, or invalidate the current session",
                 "tags": [
                     "Logout"
                 ],
+                "requestBody": {
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "type": "object",
+                                "properties": {
+                                    "refresh_token": {
+                                        "type": "string"
+                                    }
+                                }
+                            }
+                        }
+                    }
+                },
                 "responses": {
                     "204": {
                         "description": "No content"
                     },
                     "401": {
-                        "$ref": "#/components/responses/AuthenticationException"
+                        "description": "An error",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "message": {
+                                            "type": "string",
+                                            "description": "Error overview.",
+                                            "examples": [
+                                                ""
+                                            ]
+                                        }
+                                    },
+                                    "required": [
+                                        "message"
+                                    ]
+                                }
+                            }
+                        }
                     }
-                }
+                },
+                "security": []
             }
         },
         "/v1/auth/me": {
@@ -567,6 +638,163 @@
                         "$ref": "#/components/responses/AuthenticationException"
                     }
                 }
+            }
+        },
+        "/v1/ai/presentation/evaluate": {
+            "post": {
+                "operationId": "v1.ai.presentation.evaluate",
+                "summary": "Evaluate a slide presentation delivery and return 4-pillar structured feedback",
+                "tags": [
+                    "PresentationEvaluation"
+                ],
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/EvaluatePresentationRequest"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "description": "",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "type": "object",
+                                            "additionalProperties": {}
+                                        }
+                                    },
+                                    "required": [
+                                        "data"
+                                    ]
+                                }
+                            }
+                        }
+                    },
+                    "502": {
+                        "description": "",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "message": {
+                                            "type": "string",
+                                            "const": "Tr\u1ee3 l\u00fd AI t\u1ea1m th\u1eddi kh\u00f4ng ph\u1ea3n h\u1ed3i. Vui l\u00f2ng th\u1eed l\u1ea1i."
+                                        }
+                                    },
+                                    "required": [
+                                        "message"
+                                    ]
+                                }
+                            }
+                        }
+                    },
+                    "429": {
+                        "description": "",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "message": {
+                                            "type": "string",
+                                            "const": "Tr\u1ee3 l\u00fd AI \u0111ang b\u1eadn. Vui l\u00f2ng th\u1eed l\u1ea1i sau \u00edt ph\u00fat."
+                                        }
+                                    },
+                                    "required": [
+                                        "message"
+                                    ]
+                                }
+                            }
+                        }
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/AuthenticationException"
+                    },
+                    "422": {
+                        "$ref": "#/components/responses/ValidationException"
+                    }
+                }
+            }
+        },
+        "/v1/auth/refresh": {
+            "post": {
+                "operationId": "v1.auth.refresh",
+                "summary": "Rotate a refresh token and return a new access/refresh token pair",
+                "tags": [
+                    "RefreshToken"
+                ],
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "type": "object",
+                                "properties": {
+                                    "refresh_token": {
+                                        "type": "string",
+                                        "minLength": 40,
+                                        "maxLength": 255
+                                    }
+                                },
+                                "required": [
+                                    "refresh_token"
+                                ]
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "description": "",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "type": "object",
+                                            "additionalProperties": {}
+                                        }
+                                    },
+                                    "required": [
+                                        "data"
+                                    ]
+                                }
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "message": {
+                                            "type": "string",
+                                            "const": "Phi\u00ean \u0111\u0103ng nh\u1eadp \u0111\u00e3 h\u1ebft h\u1ea1n. Vui l\u00f2ng \u0111\u0103ng nh\u1eadp l\u1ea1i."
+                                        }
+                                    },
+                                    "required": [
+                                        "message"
+                                    ]
+                                }
+                            }
+                        }
+                    },
+                    "422": {
+                        "$ref": "#/components/responses/ValidationException"
+                    }
+                },
+                "security": []
             }
         },
         "/v1/auth/register": {
@@ -619,21 +847,18 @@
                                                     "type": "object",
                                                     "properties": {
                                                         "user": {
-                                                            "$ref": "#/components/schemas/UserResource"
-                                                        },
-                                                        "token": {
-                                                            "type": "string"
-                                                        },
-                                                        "token_type": {
-                                                            "type": "string",
-                                                            "const": "Bearer"
+                                                            "anyOf": [
+                                                                {
+                                                                    "$ref": "#/components/schemas/UserResource"
+                                                                },
+                                                                {}
+                                                            ]
                                                         }
                                                     },
                                                     "required": [
-                                                        "user",
-                                                        "token",
-                                                        "token_type"
-                                                    ]
+                                                        "user"
+                                                    ],
+                                                    "additionalProperties": {}
                                                 }
                                             },
                                             "required": [
@@ -787,21 +1012,18 @@
                                             "type": "object",
                                             "properties": {
                                                 "user": {
-                                                    "$ref": "#/components/schemas/UserResource"
-                                                },
-                                                "token": {
-                                                    "type": "string"
-                                                },
-                                                "token_type": {
-                                                    "type": "string",
-                                                    "const": "Bearer"
+                                                    "anyOf": [
+                                                        {
+                                                            "$ref": "#/components/schemas/UserResource"
+                                                        },
+                                                        {}
+                                                    ]
                                                 }
                                             },
                                             "required": [
-                                                "user",
-                                                "token",
-                                                "token_type"
-                                            ]
+                                                "user"
+                                            ],
+                                            "additionalProperties": {}
                                         }
                                     },
                                     "required": [
@@ -810,6 +1032,97 @@
                                 }
                             }
                         }
+                    }
+                },
+                "security": []
+            }
+        },
+        "/v1/auth/social/exchange": {
+            "post": {
+                "operationId": "v1.auth.social.exchange",
+                "description": "The Google callback cannot create a session directly because the\nredirect originates from Google, not from the SPA domain, so\nSanctum's stateful middleware is not active.  The frontend calls\nthis endpoint (from its own origin) after receiving the code,\nwhich ensures the session middleware is in place.",
+                "summary": "Exchange a one-time OAuth code for a cookie session",
+                "tags": [
+                    "SocialiteExchange"
+                ],
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "type": "object",
+                                "properties": {
+                                    "code": {
+                                        "type": "string",
+                                        "minLength": 40,
+                                        "maxLength": 40
+                                    }
+                                },
+                                "required": [
+                                    "code"
+                                ]
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "description": "",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "anyOf": [
+                                        {
+                                            "type": "object",
+                                            "properties": {
+                                                "data": {
+                                                    "type": "object",
+                                                    "properties": {
+                                                        "user": {
+                                                            "$ref": "#/components/schemas/UserResource"
+                                                        }
+                                                    },
+                                                    "required": [
+                                                        "user"
+                                                    ]
+                                                }
+                                            },
+                                            "required": [
+                                                "data"
+                                            ]
+                                        },
+                                        {
+                                            "type": "object",
+                                            "properties": {
+                                                "data": {
+                                                    "type": "object",
+                                                    "properties": {
+                                                        "user": {
+                                                            "anyOf": [
+                                                                {
+                                                                    "$ref": "#/components/schemas/UserResource"
+                                                                },
+                                                                {}
+                                                            ]
+                                                        }
+                                                    },
+                                                    "required": [
+                                                        "user"
+                                                    ],
+                                                    "additionalProperties": {}
+                                                }
+                                            },
+                                            "required": [
+                                                "data"
+                                            ]
+                                        }
+                                    ]
+                                }
+                            }
+                        }
+                    },
+                    "422": {
+                        "$ref": "#/components/responses/ValidationException"
                     }
                 },
                 "security": []
@@ -1014,6 +1327,64 @@
                 ],
                 "title": "ChatRequest"
             },
+            "EvaluatePresentationRequest": {
+                "type": "object",
+                "properties": {
+                    "slide_content": {
+                        "type": "string",
+                        "maxLength": 25000
+                    },
+                    "transcript": {
+                        "type": "string",
+                        "maxLength": 15000
+                    },
+                    "duration": {
+                        "type": "string",
+                        "maxLength": 50
+                    },
+                    "words_per_minute": {
+                        "type": "integer",
+                        "minimum": 0,
+                        "maximum": 500
+                    },
+                    "fillers_count": {
+                        "type": "integer",
+                        "minimum": 0,
+                        "maximum": 500
+                    },
+                    "eye_contact_percent": {
+                        "type": "integer",
+                        "minimum": 0,
+                        "maximum": 100
+                    },
+                    "posture_score": {
+                        "type": "integer",
+                        "minimum": 0,
+                        "maximum": 100
+                    },
+                    "language": {
+                        "type": [
+                            "string",
+                            "null"
+                        ],
+                        "enum": [
+                            "vi",
+                            "en",
+                            null
+                        ]
+                    }
+                },
+                "required": [
+                    "slide_content",
+                    "transcript",
+                    "duration",
+                    "words_per_minute",
+                    "fillers_count",
+                    "eye_contact_percent",
+                    "posture_score"
+                ],
+                "title": "EvaluatePresentationRequest"
+            },
             "ForgotPasswordRequest": {
                 "type": "object",
                 "properties": {
@@ -1104,6 +1475,9 @@
                             "null"
                         ],
                         "maxLength": 255
+                    },
+                    "login_after_registration": {
+                        "type": "boolean"
                     },
                     "password_confirmation": {
                         "type": "string"

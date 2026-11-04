@@ -159,7 +159,7 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Revoke the current access token or invalidate the current session */
+        /** Revoke the current access token, refresh token family, or invalidate the current session */
         post: operations["v1.auth.logout"];
         delete?: never;
         options?: never;
@@ -178,6 +178,40 @@ export interface paths {
         get: operations["v1.auth.me"];
         put?: never;
         post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/ai/presentation/evaluate": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Evaluate a slide presentation delivery and return 4-pillar structured feedback */
+        post: operations["v1.ai.presentation.evaluate"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/auth/refresh": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Rotate a refresh token and return a new access/refresh token pair */
+        post: operations["v1.auth.refresh"];
         delete?: never;
         options?: never;
         head?: never;
@@ -252,6 +286,30 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/auth/social/exchange": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Exchange a one-time OAuth code for a cookie session
+         * @description The Google callback cannot create a session directly because the
+         *     redirect originates from Google, not from the SPA domain, so
+         *     Sanctum's stateful middleware is not active.  The frontend calls
+         *     this endpoint (from its own origin) after receiving the code,
+         *     which ensures the session middleware is in place.
+         */
+        post: operations["v1.auth.social.exchange"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/auth/social/google/redirect": {
         parameters: {
             query?: never;
@@ -295,6 +353,18 @@ export interface components {
             message: string;
             /** Format: uuid */
             conversation_id?: string | null;
+        };
+        /** EvaluatePresentationRequest */
+        EvaluatePresentationRequest: {
+            slide_content: string;
+            transcript: string;
+            duration: string;
+            words_per_minute: number;
+            fillers_count: number;
+            eye_contact_percent: number;
+            posture_score: number;
+            /** @enum {string|null} */
+            language?: "vi" | "en" | null;
         };
         /** ForgotPasswordRequest */
         ForgotPasswordRequest: {
@@ -519,10 +589,7 @@ export interface operations {
                 content: {
                     "application/json": {
                         data: {
-                            score: number;
-                            summary: string;
-                            strengths: unknown[];
-                            improvements: unknown[];
+                            [key: string]: unknown;
                         };
                     };
                 };
@@ -604,15 +671,30 @@ export interface operations {
                         };
                     } | {
                         data: {
-                            user: components["schemas"]["UserResource"];
-                            token: string;
-                            /** @constant */
-                            token_type: "Bearer";
+                            user: components["schemas"]["UserResource"] | unknown;
+                        } & {
+                            [key: string]: unknown;
                         };
                     };
                 };
             };
             422: components["responses"]["ValidationException"];
+            423: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        message: string | "Tài khoản đã bị khóa tạm thời. Vui lòng thử lại sau 15 phút.";
+                        errors: {
+                            email: [
+                                string | "Tài khoản đã bị khóa tạm thời. Vui lòng thử lại sau 15 phút."
+                            ];
+                        };
+                        retry_after_seconds: number;
+                    };
+                };
+            };
         };
     };
     "v1.auth.logout": {
@@ -622,7 +704,13 @@ export interface operations {
             path?: never;
             cookie?: never;
         };
-        requestBody?: never;
+        requestBody?: {
+            content: {
+                "application/json": {
+                    refresh_token?: string;
+                };
+            };
+        };
         responses: {
             /** @description No content */
             204: {
@@ -631,7 +719,21 @@ export interface operations {
                 };
                 content?: never;
             };
-            401: components["responses"]["AuthenticationException"];
+            /** @description An error */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /**
+                         * @description Error overview.
+                         * @example
+                         */
+                        message: string;
+                    };
+                };
+            };
         };
     };
     "v1.auth.me": {
@@ -655,6 +757,98 @@ export interface operations {
                 };
             };
             401: components["responses"]["AuthenticationException"];
+        };
+    };
+    "v1.ai.presentation.evaluate": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["EvaluatePresentationRequest"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        data: {
+                            [key: string]: unknown;
+                        };
+                    };
+                };
+            };
+            401: components["responses"]["AuthenticationException"];
+            422: components["responses"]["ValidationException"];
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /** @constant */
+                        message: "Trợ lý AI đang bận. Vui lòng thử lại sau ít phút.";
+                    };
+                };
+            };
+            502: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /** @constant */
+                        message: "Trợ lý AI tạm thời không phản hồi. Vui lòng thử lại.";
+                    };
+                };
+            };
+        };
+    };
+    "v1.auth.refresh": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    refresh_token: string;
+                };
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        data: {
+                            [key: string]: unknown;
+                        };
+                    };
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /** @constant */
+                        message: "Phiên đăng nhập đã hết hạn. Vui lòng đăng nhập lại.";
+                    };
+                };
+            };
+            422: components["responses"]["ValidationException"];
         };
     };
     "v1.auth.register": {
@@ -681,10 +875,9 @@ export interface operations {
                         };
                     } | {
                         data: {
-                            user: components["schemas"]["UserResource"];
-                            token: string;
-                            /** @constant */
-                            token_type: "Bearer";
+                            user: components["schemas"]["UserResource"] | unknown;
+                        } & {
+                            [key: string]: unknown;
                         };
                     };
                 };
@@ -771,10 +964,9 @@ export interface operations {
                 content: {
                     "application/json": {
                         data: {
-                            user: components["schemas"]["UserResource"];
-                            token: string;
-                            /** @constant */
-                            token_type: "Bearer";
+                            user: components["schemas"]["UserResource"] | unknown;
+                        } & {
+                            [key: string]: unknown;
                         };
                     };
                 };
@@ -786,6 +978,42 @@ export interface operations {
                 };
                 content?: never;
             };
+        };
+    };
+    "v1.auth.social.exchange": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    code: string;
+                };
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        data: {
+                            user: components["schemas"]["UserResource"];
+                        };
+                    } | {
+                        data: {
+                            user: components["schemas"]["UserResource"] | unknown;
+                        } & {
+                            [key: string]: unknown;
+                        };
+                    };
+                };
+            };
+            422: components["responses"]["ValidationException"];
         };
     };
     "v1.auth.social.redirect": {

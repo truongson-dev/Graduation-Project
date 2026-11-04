@@ -2,9 +2,9 @@
 
 namespace App\Http\Controllers\Api\V1\Ai;
 
+use App\Data\Ai\ConversationData;
 use App\Http\Controllers\Controller;
 use App\Models\User;
-use DateTimeInterface;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Laravel\Ai\Models\Conversation;
@@ -28,16 +28,10 @@ class ConversationIndexController extends Controller
             ->latest('updated_at')
             ->cursorPaginate((int) ($validated['per_page'] ?? 20));
 
-        $conversations = array_map(function (Conversation $conversation): array {
-            $attributes = $conversation->toArray();
-
-            return [
-                'id' => (string) $attributes['id'],
-                'title' => (string) $attributes['title'],
-                'created_at' => $this->toIso8601($attributes['created_at'] ?? null),
-                'updated_at' => $this->toIso8601($attributes['updated_at'] ?? null),
-            ];
-        }, $paginator->items());
+        $conversations = array_map(
+            static fn (Conversation $conversation): array => ConversationData::fromModel($conversation)->toArray(),
+            $paginator->items()
+        );
 
         return response()->json([
             'data' => $conversations,
@@ -47,13 +41,5 @@ class ConversationIndexController extends Controller
                 'per_page' => $paginator->perPage(),
             ],
         ]);
-    }
-
-    /**
-     * Format a date attribute as an ISO 8601 string.
-     */
-    private function toIso8601(mixed $value): ?string
-    {
-        return $value instanceof DateTimeInterface ? $value->format(DateTimeInterface::ATOM) : null;
     }
 }

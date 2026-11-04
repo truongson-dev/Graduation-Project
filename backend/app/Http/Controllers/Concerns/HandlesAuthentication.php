@@ -27,10 +27,12 @@ trait HandlesAuthentication
         $user->loadMissing('roles');
 
         if (filled($deviceName) || ! $request->hasSession()) {
+            $tokenData = app(AuthTokenService::class)->issue($user, $deviceName ?: 'api');
+
             return response()->json([
                 'data' => [
                     'user' => UserResource::make($user),
-                    ...app(AuthTokenService::class)->issue($user, $deviceName ?: 'api'),
+                    ...$tokenData->toArray(),
                 ],
             ], $status);
         }

@@ -3,6 +3,8 @@
 namespace App\Http\Controllers\Api\V1\Auth;
 
 use App\Auth\AuthTokenService;
+use App\Data\Auth\AuthTokenData;
+use App\Data\Auth\OAuthIntentData;
 use App\Http\Controllers\Controller;
 use App\Http\Resources\UserResource;
 use App\Models\User;
@@ -90,7 +92,7 @@ class SocialiteCallbackController extends Controller
             );
         }
 
-        return $this->oauthResponse($request, $user, $intent['device_name']);
+        return $this->oauthResponse($request, $user, $intent->device_name);
     }
 
     /**
@@ -214,15 +216,13 @@ class SocialiteCallbackController extends Controller
 
     /**
      * Build the JSON payload returned to token clients.
-     *
-     * @param  array{token: string, refresh_token: string, token_type: string, expires_in: int}  $pair
      */
-    private function tokenResponse(User $user, array $pair): JsonResponse
+    private function tokenResponse(User $user, AuthTokenData $pair): JsonResponse
     {
         return response()->json([
             'data' => [
                 'user' => UserResource::make($user),
-                ...$pair,
+                ...$pair->toArray(),
             ],
         ]);
     }
@@ -236,9 +236,9 @@ class SocialiteCallbackController extends Controller
         Request $request,
         string $code,
         string $message,
-        ?array $intent = null,
+        ?OAuthIntentData $intent = null,
     ): RedirectResponse {
-        if (! $request->expectsJson() && ! filled($intent['device_name'] ?? null)) {
+        if (! $request->expectsJson() && ! filled($intent?->device_name)) {
             $frontend = rtrim((string) config('app.frontend_url'), '/');
 
             if ($frontend !== '') {

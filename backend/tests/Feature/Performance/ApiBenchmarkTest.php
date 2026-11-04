@@ -105,7 +105,7 @@ it('benchmarks response times of all api endpoints', function () {
         $pair = $tokens->issue($meUser, 'device');
 
         return $this->postJson('/api/v1/auth/refresh', [
-            'refresh_token' => $pair['refresh_token'],
+            'refresh_token' => $pair->refresh_token,
         ]);
     });
 

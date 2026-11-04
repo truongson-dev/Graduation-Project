@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Api\V1\Auth;
 
+use App\Data\Auth\OAuthIntentData;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Str;
@@ -38,10 +39,8 @@ final class OAuthState
 
     /**
      * Consume the OAuth intent behind the given state.
-     *
-     * @return array{device_name: string|null}|null
      */
-    public static function pull(mixed $state, Request $request): ?array
+    public static function pull(mixed $state, Request $request): ?OAuthIntentData
     {
         if (! is_string($state) || $state === '') {
             return null;
@@ -64,7 +63,10 @@ final class OAuthState
 
         $deviceName = $payload['device_name'] ?? null;
 
-        return ['device_name' => is_string($deviceName) ? $deviceName : null];
+        return new OAuthIntentData(
+            device_name: is_string($deviceName) ? $deviceName : null,
+            client: $client,
+        );
     }
 
     /**

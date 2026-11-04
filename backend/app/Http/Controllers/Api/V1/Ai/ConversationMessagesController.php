@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Api\V1\Ai;
 
+use App\Data\Ai\MessageData;
 use App\Http\Controllers\Controller;
 use App\Models\User;
 use Illuminate\Http\JsonResponse;
@@ -37,13 +38,10 @@ class ConversationMessagesController extends Controller
             (int) ($validated['per_page'] ?? 20),
         );
 
-        $messages = array_map(fn (StoredMessage $message): array => [
-            'id' => $message->id,
-            'role' => $message->role,
-            'content' => $message->content,
-            'status' => $message->status->value,
-            'created_at' => $message->createdAt?->toIso8601String(),
-        ], $paginator->items());
+        $messages = array_map(
+            static fn (StoredMessage $message): array => MessageData::fromStoredMessage($message)->toArray(),
+            $paginator->items()
+        );
 
         $nextCursor = $paginator->nextCursor();
         $previousCursor = $paginator->previousCursor();

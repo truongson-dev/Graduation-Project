@@ -26,6 +26,6 @@ class RefreshTokenController extends Controller
             ], 401);
         }
 
-        return response()->json(['data' => $pair]);
+        return response()->json(['data' => $pair->toArray()]);
     }
 }

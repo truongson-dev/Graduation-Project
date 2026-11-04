@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Api\V1\Ai;
 
 use App\Ai\Agents\PresentationEvaluator;
+use App\Data\Ai\PresentationFeedbackData;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Ai\EvaluatePresentationRequest;
 use Illuminate\Http\JsonResponse;
@@ -48,17 +49,7 @@ class PresentationEvaluationController extends Controller
         $feedback = $response->structured;
 
         return response()->json([
-            'data' => [
-                'overall_score' => (int) ($feedback['overall_score'] ?? 0),
-                'is_reading_slides' => (bool) ($feedback['is_reading_slides'] ?? false),
-                'slide_coverage_score' => (int) ($feedback['slide_coverage_score'] ?? 0),
-                'elaboration_quality' => (string) ($feedback['elaboration_quality'] ?? ''),
-                'voice_feedback' => (string) ($feedback['voice_feedback'] ?? ''),
-                'body_language_feedback' => (string) ($feedback['body_language_feedback'] ?? ''),
-                'strengths' => $this->strings($feedback['strengths'] ?? []),
-                'improvements' => $this->strings($feedback['improvements'] ?? []),
-                'actionable_tips' => $this->strings($feedback['actionable_tips'] ?? []),
-            ],
+            'data' => PresentationFeedbackData::fromStructured($feedback)->toArray(),
         ]);
     }
 
@@ -72,18 +63,5 @@ class PresentationEvaluationController extends Controller
             "NỘI DUNG TRÊN CÁC TRANG SLIDE:\n<<<\n{$agent->slideContent}\n>>>",
             "LỜI NÓI THUYẾT TRÌNH CỦA NGƯỜI HỌC (TRANSCRIPT):\n<<<\n{$agent->transcript}\n>>>",
         ]);
-    }
-
-    /**
-     * Normalize a list value into an array of strings.
-     *
-     * @return array<int, string>
-     */
-    private function strings(mixed $value): array
-    {
-        return array_values(array_map(
-            static fn (mixed $item): string => (string) $item,
-            is_array($value) ? $value : [],
-        ));
     }
 }
