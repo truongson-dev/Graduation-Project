@@ -77,7 +77,7 @@ describe('PracticeLivePage Web Speech API', () => {
     vi.restoreAllMocks();
   });
 
-  it('renders presentation live meeting stage and opens AI coach drawer with speech controls', () => {
+  it('renders the live presentation workspace and switches to AI feedback', () => {
     const dummyFile = new File(['dummy content'], 'test_slide.pdf', { type: 'application/pdf' });
     render(<PracticeLivePage />, {
       wrapper: createWrapper({
@@ -89,17 +89,16 @@ describe('PracticeLivePage Web Speech API', () => {
       }),
     });
 
-    expect(screen.getAllByText('mak-pyhx-mra').length).toBeGreaterThanOrEqual(1);
-    expect(screen.getByText('Dừng trình bày')).toBeTruthy();
+    expect(screen.getByRole('region', { name: 'Khu vực trình chiếu' })).toBeTruthy();
+    expect(screen.getByText('test_slide.pdf')).toBeTruthy();
+    expect(screen.getByText('Slide 1 introduction')).toBeTruthy();
+    expect((screen.getByRole('button', { name: 'Trang trước' }) as HTMLButtonElement).disabled).toBe(true);
 
-    // Open AI Coach Drawer
-    const coachToggleBtn = screen.getByTitle('Hoạt động AI & Phân tích tác phong');
-    fireEvent.click(coachToggleBtn);
+    fireEvent.click(screen.getByRole('tab', { name: /nhận xét trực tiếp từ AI/i }));
 
-    expect(screen.getByText('Tác phong AI')).toBeTruthy();
-
-    // Switch to transcript tab
-    fireEvent.click(screen.getByRole('button', { name: /lời thoại live/i }));
-    expect(screen.getByText('Phụ đề nhận dạng thời gian thực')).toBeTruthy();
+    expect(screen.getByText('Tốc độ nói')).toBeTruthy();
+    expect(screen.getByText('Từ đệm')).toBeTruthy();
+    expect(screen.getByText('Giao tiếp mắt')).toBeTruthy();
+    expect(screen.getByText('Tư thế')).toBeTruthy();
   });
 });

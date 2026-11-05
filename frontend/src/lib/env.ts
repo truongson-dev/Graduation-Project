@@ -4,10 +4,14 @@ import { z } from 'zod';
  * Validate build-time configuration once, at boot.
  *
  * A bad VITE_API_URL must fail loudly here instead of producing 404s on every
- * screen. Defaults mirror .env.example.
+ * screen. Local development uses the same-origin `/api` proxy while production
+ * may provide an absolute backend URL.
  */
 const envSchema = z.object({
-  VITE_API_URL: z.url().default('http://localhost:8000/api'),
+  VITE_API_URL: z.union([
+    z.url(),
+    z.string().regex(/^\/(?!\/)/, 'Phải là URL tuyệt đối hoặc đường dẫn bắt đầu bằng /'),
+  ]).default('/api'),
   VITE_API_VERSION: z.string().min(1).default('v1'),
 });
 

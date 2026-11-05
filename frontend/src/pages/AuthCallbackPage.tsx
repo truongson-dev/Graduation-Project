@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { Link, useNavigate } from 'react-router';
 import { consumeGoogleCallbackCode, consumeGoogleCallbackError, getApiError, useSocialExchange } from '../lib/auth';
+import { AppIcon } from '../components/Common/AppIcon';
 
 export const AuthCallbackPage: React.FC = () => {
   const navigate = useNavigate();
@@ -41,7 +42,7 @@ export const AuthCallbackPage: React.FC = () => {
       <div className="max-w-md w-full bg-white rounded-3xl shadow-xl border border-slate-200/70 p-8 text-center">
         {error ? (
           <>
-            <span className="material-symbols-outlined text-red-500 text-[40px]">error</span>
+            <AppIcon name="error" className="text-[40px] text-red-500" />
             <h1 className="text-lg font-bold text-[#002045] mt-2">Đăng nhập Google thất bại</h1>
             <p className="text-sm text-slate-600 mt-2">{error}</p>
             <Link
@@ -53,9 +54,7 @@ export const AuthCallbackPage: React.FC = () => {
           </>
         ) : (
           <>
-            <span className="material-symbols-outlined text-[40px] text-[#1a365d] animate-spin">
-              progress_activity
-            </span>
+            <AppIcon name="progress_activity" className="animate-spin text-[40px] text-[#1a365d]" />
             <p className="text-sm text-slate-600 mt-3">Đang hoàn tất đăng nhập...</p>
           </>
         )}

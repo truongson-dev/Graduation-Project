@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { AppIcon as Icon } from '../Common/AppIcon';
 
 interface AiCoachDrawerProps {
   isOpen: boolean;
@@ -15,10 +16,6 @@ interface AiCoachDrawerProps {
   isActive: boolean;
   speechError?: string;
   className?: string;
-}
-
-function Icon({ name, className = '' }: { name: string; className?: string }) {
-  return <span aria-hidden="true" className={`material-symbols-outlined ${className}`}>{name}</span>;
 }
 
 export const AiCoachDrawer: React.FC<AiCoachDrawerProps> = ({

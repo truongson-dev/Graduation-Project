@@ -7,6 +7,7 @@ import {
   type GradeFeedback,
   type PresentationEvaluationFeedback,
 } from '../../lib/ai';
+import { AppIcon as Icon } from '../Common/AppIcon';
 
 export interface PresentationReview {
   slideContent?: string;
@@ -51,10 +52,6 @@ function scoreBorderColor(score: number): string {
   if (score >= 80) return '#059669';
   if (score >= 60) return '#d97706';
   return '#dc2626';
-}
-
-function Icon({ name, className = '' }: { name: string; className?: string }) {
-  return <span aria-hidden="true" className={`material-symbols-outlined ${className}`}>{name}</span>;
 }
 
 /**
@@ -142,49 +139,6 @@ export const GradePanel: React.FC<GradePanelProps> = ({ presentationReview }) =>
   if (presentationReview) {
     return (
       <div className="space-y-6">
-        {/* Metric Quick Bar */}
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 bg-white p-4 rounded-2xl border border-slate-200/80 shadow-sm">
-          <div className="flex items-center gap-3 p-2">
-            <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-blue-50 text-blue-700">
-              <Icon name="timer" className="text-xl" />
-            </span>
-            <div className="min-w-0">
-              <p className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider">Thời lượng</p>
-              <p className="text-base font-bold text-slate-800">{presentationReview.duration}</p>
-            </div>
-          </div>
-
-          <div className="flex items-center gap-3 p-2">
-            <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-teal-50 text-teal-700">
-              <Icon name="speed" className="text-xl" />
-            </span>
-            <div className="min-w-0">
-              <p className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider">Tốc độ nói</p>
-              <p className="text-base font-bold text-slate-800">{presentationReview.wordsPerMinute} <span className="text-xs font-normal text-slate-500">từ/p</span></p>
-            </div>
-          </div>
-
-          <div className="flex items-center gap-3 p-2">
-            <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-amber-50 text-amber-700">
-              <Icon name="format_quote" className="text-xl" />
-            </span>
-            <div className="min-w-0">
-              <p className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider">Từ đệm</p>
-              <p className="text-base font-bold text-slate-800">{presentationReview.fillers} <span className="text-xs font-normal text-slate-500">từ</span></p>
-            </div>
-          </div>
-
-          <div className="flex items-center gap-3 p-2">
-            <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-purple-50 text-purple-700">
-              <Icon name="visibility" className="text-xl" />
-            </span>
-            <div className="min-w-0">
-              <p className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider">Giao tiếp mắt</p>
-              <p className="text-base font-bold text-slate-800">{presentationReview.eyeContact}%</p>
-            </div>
-          </div>
-        </div>
-
         {/* Loading State */}
         {evaluatePresentation.isPending && (
           <div className="bg-white rounded-3xl border border-slate-200/80 p-8 shadow-sm text-center">
@@ -202,7 +156,7 @@ export const GradePanel: React.FC<GradePanelProps> = ({ presentationReview }) =>
         {evalError && !evaluatePresentation.isPending && (
           <div className="bg-white rounded-3xl border border-rose-200 p-6 shadow-sm">
             <div className="flex items-start gap-3">
-              <span className="material-symbols-outlined text-rose-600 text-2xl shrink-0">error</span>
+              <Icon name="error" className="shrink-0 text-2xl text-rose-600" />
               <div className="flex-1 min-w-0">
                 <h4 className="text-sm font-bold text-rose-900">Không thể tải đánh giá từ AI</h4>
                 <p className="mt-1 text-xs text-rose-700">{evalError}</p>
@@ -268,7 +222,7 @@ export const GradePanel: React.FC<GradePanelProps> = ({ presentationReview }) =>
                   <div className="mt-4">
                     {evalFeedback.is_reading_slides ? (
                       <div className="rounded-xl border border-amber-300 bg-amber-50/90 p-3.5 text-amber-900 shadow-xs flex items-start gap-3">
-                        <span className="material-symbols-outlined text-amber-600 text-xl shrink-0">warning</span>
+                        <Icon name="warning" className="shrink-0 text-xl text-amber-600" />
                         <div className="text-left">
                           <h4 className="font-bold text-xs text-amber-900">Cảnh báo: Có xu hướng đọc lại chữ trên slide</h4>
                           <p className="mt-1 text-[11px] leading-relaxed text-amber-800">
@@ -278,7 +232,7 @@ export const GradePanel: React.FC<GradePanelProps> = ({ presentationReview }) =>
                       </div>
                     ) : (
                       <div className="rounded-xl border border-emerald-300 bg-emerald-50/90 p-3.5 text-emerald-900 shadow-xs flex items-start gap-3">
-                        <span className="material-symbols-outlined text-emerald-600 text-xl shrink-0">verified</span>
+                        <Icon name="verified" className="shrink-0 text-xl text-emerald-600" />
                         <div className="text-left">
                           <h4 className="font-bold text-xs text-emerald-900">Diễn giải tự nhiên, không phụ thuộc slide</h4>
                           <p className="mt-1 text-[11px] leading-relaxed text-emerald-800">
@@ -568,7 +522,7 @@ export const GradePanel: React.FC<GradePanelProps> = ({ presentationReview }) =>
 
         {classicError && (
           <div className="p-3.5 rounded-xl bg-red-50 border border-red-200 text-red-800 text-sm flex items-start gap-2.5">
-            <span className="material-symbols-outlined text-red-600 text-[20px]">error</span>
+            <Icon name="error" className="text-[20px] text-red-600" />
             <span>{classicError}</span>
           </div>
         )}

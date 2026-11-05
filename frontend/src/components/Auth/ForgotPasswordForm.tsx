@@ -4,6 +4,7 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { useForgotPassword } from '../../lib/auth';
 import { getApiError } from '../../lib/api';
+import { AppIcon } from '../Common/AppIcon';
 
 const forgotSchema = z.object({
   email: z.email('Email không đúng định dạng'),
@@ -36,7 +37,7 @@ export const ForgotPasswordForm: React.FC = () => {
     return (
       <div className="space-y-3">
         <div className="p-3 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-800 text-sm flex items-start gap-2">
-          <span className="material-symbols-outlined text-emerald-600 text-[20px]">mark_email_read</span>
+          <AppIcon name="mark_email_read" className="text-[20px] text-emerald-600" />
           <span>
             Nếu email này đã đăng ký, hệ thống đã gửi liên kết đặt lại mật khẩu. Hãy kiểm tra hộp thư
             (cả mục Spam).

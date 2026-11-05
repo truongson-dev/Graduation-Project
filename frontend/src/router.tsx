@@ -11,13 +11,12 @@ import { PracticeSetupPage } from './pages/PracticeSetupPage';
 import { PracticeLivePage } from './pages/PracticeLivePage';
 import { ResetPasswordPage } from './pages/ResetPasswordPage';
 import { useMe } from './lib/auth';
+import { AppIcon } from './components/Common/AppIcon';
 
 function LoadingScreen() {
   return (
     <div className="min-h-screen flex items-center justify-center bg-[#f8fafc]">
-      <span className="material-symbols-outlined text-[32px] text-[#1a365d] animate-spin">
-        progress_activity
-      </span>
+      <AppIcon name="progress_activity" className="animate-spin text-[32px] text-[#1a365d]" />
     </div>
   );
 }

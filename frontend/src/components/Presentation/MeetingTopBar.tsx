@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { useMe } from '../../lib/auth';
+import { AppIcon as Icon } from '../Common/AppIcon';
 
 interface MeetingTopBarProps {
   fileName: string;
@@ -8,10 +9,6 @@ interface MeetingTopBarProps {
   seconds: number;
   onFinishSession: () => void;
   className?: string;
-}
-
-function Icon({ name, className = '' }: { name: string; className?: string }) {
-  return <span aria-hidden="true" className={`material-symbols-outlined ${className}`}>{name}</span>;
 }
 
 export const MeetingTopBar: React.FC<MeetingTopBarProps> = ({

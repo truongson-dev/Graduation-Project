@@ -4,6 +4,7 @@ import { InputField } from '../components/Auth/InputField';
 import { getApiError } from '../lib/api';
 import { useResetPassword } from '../lib/auth';
 import { PASSWORD_REQUIREMENTS, passwordSchema } from '../lib/password';
+import { AppIcon } from '../components/Common/AppIcon';
 
 const MAX_PASSWORD_LENGTH = 72;
 
@@ -56,16 +57,14 @@ export const ResetPasswordPage: React.FC = () => {
     <div className="min-h-screen flex items-center justify-center bg-[#f8fafc] px-4">
       <div className="max-w-md w-full bg-white rounded-3xl shadow-xl border border-slate-200/70 p-8">
         <div className="flex items-center gap-2 pb-4 border-b border-slate-100">
-          <span className="material-symbols-outlined text-[#1a365d] text-[24px]">
-            lock_reset
-          </span>
+          <AppIcon name="lock_reset" className="text-[24px] text-[#1a365d]" />
           <h1 className="font-bold text-slate-800 text-lg">Đặt lại mật khẩu</h1>
         </div>
 
         {!linkIsValid && (
           <div className="pt-4 space-y-3 text-sm text-slate-600">
             <div className="p-3.5 rounded-xl bg-red-50 border border-red-200 text-red-800 flex items-start gap-2">
-              <span className="material-symbols-outlined text-red-600 text-[20px]">error</span>
+              <AppIcon name="error" className="text-[20px] text-red-600" />
               <span>Liên kết không hợp lệ: thiếu mã xác thực hoặc email.</span>
             </div>
             <p>
@@ -84,9 +83,7 @@ export const ResetPasswordPage: React.FC = () => {
         {linkIsValid && done && (
           <div className="pt-4 space-y-3 text-sm text-slate-600">
             <div className="p-3.5 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-800 flex items-start gap-2">
-              <span className="material-symbols-outlined text-emerald-600 text-[20px]">
-                check_circle
-              </span>
+              <AppIcon name="check_circle" className="text-[20px] text-emerald-600" />
               <span>Mật khẩu đã được cập nhật. Hãy đăng nhập lại bằng mật khẩu mới.</span>
             </div>
             <Link
@@ -106,9 +103,7 @@ export const ResetPasswordPage: React.FC = () => {
 
             {error && (
               <div className="p-3.5 rounded-xl bg-red-50 border border-red-200 text-red-800 text-sm flex items-start gap-2.5">
-                <span className="material-symbols-outlined text-red-600 text-[20px]">
-                  error
-                </span>
+                <AppIcon name="error" className="text-[20px] text-red-600" />
                 <span>{error}</span>
               </div>
             )}
@@ -143,9 +138,7 @@ export const ResetPasswordPage: React.FC = () => {
             >
               {reset.isPending ? (
                 <>
-                  <span className="material-symbols-outlined text-[18px] animate-spin">
-                    progress_activity
-                  </span>
+                  <AppIcon name="progress_activity" className="animate-spin text-[18px]" />
                   <span>Đang cập nhật...</span>
                 </>
               ) : (

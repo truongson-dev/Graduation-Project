@@ -1,8 +1,12 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Link, useNavigate } from 'react-router';
-import { useLogout } from '../lib/auth';
+import { useLogout, useMe } from '../lib/auth';
 import { BrandMark } from '../components/BrandMark';
 import { useSidebarCollapsed } from '../lib/sidebar';
+import { AppIcon as Icon } from '../components/Common/AppIcon';
+import { markLearningCompletedToday } from '../lib/daily-learning';
+import { CURRENT_TOURNAMENT } from '../lib/tournament';
+import { MAX_LEARNING_LIVES, readLearningLives, type LearningLives } from '../lib/learning-lives';
 
 type LearningNode = {
   id: string;
@@ -14,6 +18,32 @@ type LearningNode = {
   state: 'complete' | 'current' | 'locked';
   lessons: string[];
 };
+
+type LearningIconKind = 'flame' | 'lightning' | 'target' | 'stopwatch' | 'gift';
+
+function formatRefillTimer(milliseconds: number) {
+  const totalSeconds = Math.max(0, Math.ceil(milliseconds / 1000));
+  const hours = Math.floor(totalSeconds / 3600).toString().padStart(2, '0');
+  const minutes = Math.floor((totalSeconds % 3600) / 60).toString().padStart(2, '0');
+  const seconds = (totalSeconds % 60).toString().padStart(2, '0');
+  return `${hours}:${minutes}:${seconds}`;
+}
+
+function HeartIcon({ active }: { active: boolean }) {
+  return <svg aria-hidden="true" viewBox="0 0 24 24" className={`h-4 w-4 ${active ? 'text-rose-500' : 'text-slate-300'}`} fill="currentColor"><path d="M12 21s-8.5-5.2-10.5-10C-.3 6.7 2.4 2.5 6.6 2.5c2.3 0 4.2 1.2 5.4 3 1.2-1.8 3.1-3 5.4-3 4.2 0 6.9 4.2 5.1 8.5C20.5 15.8 12 21 12 21Z" /></svg>;
+}
+
+function LearningIcon({ kind, className = '' }: { kind: LearningIconKind; className?: string }) {
+  const paths: Record<LearningIconKind, React.ReactNode> = {
+    flame: <><path d="M16 2c1.4 5.3-4 6.3-2.8 10.2C10 10.8 9.5 8.7 10 6.8 5.6 10 4 13 4.3 17a11.7 11.7 0 0 0 23.4 0c0-5.8-3.8-10.2-8.9-15Z" fill="#ff8a00" stroke="#fff" strokeWidth="1.8"/><path d="M16 15c.8 2.1-1.5 2.7-1 4.4-.9-.5-1.3-1.2-1.2-2.1-1.6 1.3-2.1 2.5-1.8 4a4.2 4.2 0 0 0 8.4-.2c0-2.6-1.7-4.7-4.4-6.1Z" fill="#ffd21f"/></>,
+    lightning: <path d="M18.7 1.8 6.2 17h7.2l-1.8 13.2L25.8 14h-7.4l.3-12.2Z" fill="#ffd400" stroke="#f2a900" strokeLinejoin="round" strokeWidth="1.4" />,
+    target: <><circle cx="16" cy="16" r="13" fill="#f4fff0" stroke="#70d500" strokeWidth="3.5"/><circle cx="16" cy="16" r="7.5" fill="none" stroke="#70d500" strokeWidth="3"/><path d="m11.5 16 3 3 7-7" fill="none" stroke="#42b800" strokeLinecap="round" strokeLinejoin="round" strokeWidth="3"/></>,
+    stopwatch: <><circle cx="16" cy="18" r="12.5" fill="#eafaff" stroke="#35c3ec" strokeWidth="3"/><path d="M13 2h6M16 2v3m7 2 2-2" stroke="#35c3ec" strokeLinecap="round" strokeWidth="3"/><path d="M16 10v8l5 3" fill="none" stroke="#35c3ec" strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.6"/><path d="M8.5 17.5a7.5 7.5 0 0 1 7.5-7.5" fill="none" stroke="#fff" strokeLinecap="round" strokeWidth="2"/></>,
+    gift: <><path d="M4 14h24v15H4z" fill="#b9773f" stroke="#8b4c25" strokeWidth="1.5"/><path d="M2.5 9h27v7h-27z" fill="#d99b60" stroke="#8b4c25" strokeWidth="1.5"/><path d="M14 9h4v20h-4z" fill="#f0bd78"/><path d="M16 9C8 9 7 4 10 3c3-1 6 4 6 6Zm0 0c8 0 9-5 6-6-3-1-6 4-6 6Z" fill="#e7ac68" stroke="#8b4c25" strokeWidth="1.5"/></>,
+  };
+
+  return <svg aria-hidden="true" viewBox="0 0 32 32" className={`shrink-0 ${className}`} fill="none">{paths[kind]}</svg>;
+}
 
 const learningNodes: LearningNode[] = [
   { id: 'confidence', title: 'Khởi động', subtitle: 'Làm quen hành trình', icon: 'flag', x: 63, y: 65, state: 'complete', lessons: ['Khám phá điểm mạnh của bạn', 'Đặt mục tiêu rèn luyện kỹ năng mềm', 'Nhận diện phong cách giao tiếp'] },
@@ -47,18 +77,17 @@ function buildLessonPath(count: number) {
   return path;
 }
 
-function Icon({ name, className = '' }: { name: string; className?: string }) {
-  return <span aria-hidden="true" className={`material-symbols-outlined ${className}`}>{name}</span>;
-}
-
 export const LearningPathPage: React.FC = () => {
   const navigate = useNavigate();
+  const user = useMe().data;
   const logout = useLogout();
   const [selectedId, setSelectedId] = useState('communication');
   const [showLessons, setShowLessons] = useState(false);
   const [selectedLessonIndex, setSelectedLessonIndex] = useState(0);
   const [lessonStarted, setLessonStarted] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [lives, setLives] = useState<LearningLives>(() => readLearningLives());
+  const [currentTime, setCurrentTime] = useState(Date.now());
   const [sidebarCollapsed, toggleSidebarCollapsed] = useSidebarCollapsed();
   const selectedNode = learningNodes.find((node) => node.id === selectedId) ?? learningNodes[1];
   const selectedSection = learningSections.find((section) => section.nodeId === selectedId) ?? learningSections[0];
@@ -67,6 +96,23 @@ export const LearningPathPage: React.FC = () => {
   const lessonPath = buildLessonPath(selectedNode.lessons.length);
   const lessonProgressPath = buildLessonPath(selectedNode.state === 'complete' ? selectedNode.lessons.length : currentLessonIndex + 1);
   const handleLogout = () => logout.mutate(undefined, { onSettled: () => navigate('/', { replace: true }) });
+
+  useEffect(() => {
+    const refreshLives = () => {
+      setCurrentTime(Date.now());
+      setLives(readLearningLives());
+    };
+    const timer = window.setInterval(refreshLives, 1000);
+    window.addEventListener('storage', refreshLives);
+    return () => {
+      window.clearInterval(timer);
+      window.removeEventListener('storage', refreshLives);
+    };
+  }, []);
+  const startLesson = () => {
+    setLessonStarted(true);
+    markLearningCompletedToday();
+  };
 
   const sidebar = (
     <nav aria-label="Điều hướng chính" className="flex flex-col gap-1">
@@ -77,7 +123,7 @@ export const LearningPathPage: React.FC = () => {
         { label: 'Thành tích', icon: 'emoji_events', to: '/achievements' },
         { label: 'Cộng đồng', icon: 'forum', to: '/community' },
       ].map((item) => <div key={item.to} className={`relative flex w-full items-center ${sidebarCollapsed ? '' : 'gap-1'}`}>
-        <Link to={item.to} title={sidebarCollapsed ? item.label : undefined} className={`flex min-w-0 flex-1 items-center rounded-xl py-2.5 text-[13px] font-semibold ${sidebarCollapsed ? 'justify-center px-0' : 'gap-3 px-3'} ${item.to === '/learning-path' ? 'bg-blue-600 text-white shadow-sm' : 'text-slate-600 hover:bg-blue-50 hover:text-blue-700'}`}><Icon name={item.icon} className="shrink-0 text-[19px]" />{!sidebarCollapsed && item.label}</Link>
+        <Link to={item.to} title={sidebarCollapsed ? item.label : undefined} className={`flex min-w-0 flex-1 items-center rounded-xl py-2.5 text-[13px] font-semibold ${sidebarCollapsed ? 'justify-center px-0' : 'gap-3 px-3'} ${item.to === '/learning-path' ? 'bg-blue-600 text-white shadow-sm' : 'text-blue-950 hover:bg-blue-50 hover:text-blue-700'}`}><Icon name={item.icon} className="shrink-0 text-[19px]" />{!sidebarCollapsed && item.label}</Link>
       </div>)}
     </nav>
   );
@@ -89,12 +135,15 @@ export const LearningPathPage: React.FC = () => {
           {sidebarCollapsed ? <div className="group relative h-7 w-7"><Link to="/home" aria-label="SoftSkill AI - Trang chủ" className="block h-full w-full"><BrandMark className="h-7 w-7" /></Link><button type="button" aria-label="Mở rộng thanh bên" title="Mở thanh bên" onClick={toggleSidebarCollapsed} className="absolute -inset-0.5 hidden items-center justify-center rounded-full bg-slate-100 text-slate-600 transition hover:bg-slate-200 hover:text-blue-700 group-hover:flex group-focus-within:flex"><Icon name="left_panel_open" className="text-[18px]" /></button></div> : <><Link to="/home" aria-label="SoftSkill AI - Trang chủ" className="flex min-w-0 items-center gap-2.5 text-[#163762]"><BrandMark className="h-9 w-9 shrink-0" /><span className="text-[16px] font-extrabold tracking-tight">SoftSkill <span className="text-blue-600">AI</span></span></Link><button type="button" aria-label="Thu gọn thanh bên" title="Thu gọn thanh bên" onClick={toggleSidebarCollapsed} className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-slate-100 text-slate-600 transition hover:bg-slate-200 hover:text-blue-700"><Icon name="left_panel_close" className="text-[18px]" /></button></>}
         </div>
         {sidebar}
-        <div className={`mt-auto border-t border-slate-100 py-3 ${sidebarCollapsed ? 'flex justify-center' : ''}`}><button type="button" onClick={handleLogout} disabled={logout.isPending} title={sidebarCollapsed ? 'Đăng xuất' : undefined} className={`flex items-center rounded-xl py-2.5 text-[13px] font-semibold text-slate-500 hover:bg-rose-50 hover:text-rose-700 disabled:opacity-60 ${sidebarCollapsed ? 'h-9 w-9 justify-center px-0' : 'w-full gap-3 px-3'}`}><Icon name="logout" className="text-[19px]" />{!sidebarCollapsed && 'Đăng xuất'}</button></div>
+        <div className={`mt-auto flex items-center border-t border-slate-100 py-3 ${sidebarCollapsed ? 'justify-center' : 'gap-2'}`}>
+          {!sidebarCollapsed && <div className="min-w-0 flex-1 px-1"><p className="truncate text-xs font-bold text-slate-800">{user?.name ?? 'Học viên'}</p><p className="truncate text-[10px] text-slate-400">{user?.email ?? ''}</p></div>}
+          <button type="button" onClick={handleLogout} disabled={logout.isPending} title="Đăng xuất" aria-label="Đăng xuất" className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl text-rose-600 transition hover:bg-rose-50 hover:text-rose-700 disabled:opacity-60"><Icon name="logout" className="text-[19px]" /></button>
+        </div>
       </aside>
 
       <div className={`transition-[padding] duration-200 ${sidebarCollapsed ? 'lg:pl-[76px]' : 'lg:pl-[260px]'}`}>
         <button type="button" aria-label={mobileMenuOpen ? 'Đóng điều hướng' : 'Mở điều hướng'} aria-expanded={mobileMenuOpen} onClick={() => setMobileMenuOpen((open) => !open)} className="fixed left-4 top-4 z-40 flex h-10 w-10 items-center justify-center rounded-xl border border-slate-200 bg-white text-[#163762] shadow-sm hover:bg-blue-50 lg:hidden"><Icon name={mobileMenuOpen ? 'close' : 'menu'} /></button>
-        {mobileMenuOpen && <div className="fixed inset-x-0 top-16 z-40 border-b border-slate-100 bg-white p-4 shadow-lg lg:hidden">{sidebar}<button type="button" onClick={handleLogout} className="mt-2 flex w-full items-center gap-3 border-t border-slate-100 px-3 pt-4 text-sm font-semibold text-slate-500"><Icon name="logout" />Đăng xuất</button></div>}
+        {mobileMenuOpen && <div className="fixed inset-x-0 top-16 z-40 border-b border-slate-100 bg-white p-4 shadow-lg lg:hidden"><div className="mb-3 flex items-center gap-3 border-b border-slate-100 pb-3"><div className="min-w-0 flex-1"><p className="truncate text-sm font-bold text-slate-800">{user?.name ?? 'Học viên'}</p><p className="truncate text-xs text-slate-500">{user?.email ?? ''}</p></div><button type="button" onClick={handleLogout} aria-label="Đăng xuất" title="Đăng xuất" className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl text-rose-600 hover:bg-rose-50"><Icon name="logout" /></button></div>{sidebar}</div>}
 
         <main className="mx-auto max-w-[1420px] px-4 pb-10 pt-16 sm:px-6 lg:px-8 lg:pt-6">
           <section className="relative overflow-hidden rounded-[24px] bg-gradient-to-r from-blue-700 via-blue-600 to-sky-500 p-5 text-white shadow-lg shadow-blue-900/10 sm:p-7">
@@ -140,7 +189,7 @@ export const LearningPathPage: React.FC = () => {
                             </button>
                           </div>
                           {selected && !locked && <div className="absolute z-20 -translate-y-1/2" style={{ left: startLeft, top: `${y - 39}px` }}>
-                            <button type="button" onClick={() => setLessonStarted(true)} className="inline-flex items-center gap-1 rounded-full border border-blue-100 bg-white px-3.5 py-2 text-[10px] font-extrabold text-blue-700 shadow-lg shadow-blue-900/10 transition hover:bg-blue-50"><Icon name={lessonStarted ? 'check' : 'play_arrow'} className="text-sm" />{lessonStarted ? 'ĐANG HỌC' : complete ? 'ÔN TẬP' : 'BẮT ĐẦU'}</button>
+                            <button type="button" onClick={startLesson} className="inline-flex items-center gap-1 rounded-full border border-blue-100 bg-white px-3.5 py-2 text-[10px] font-extrabold text-blue-700 shadow-lg shadow-blue-900/10 transition hover:bg-blue-50"><Icon name={lessonStarted ? 'check' : 'play_arrow'} className="text-sm" />{lessonStarted ? 'ĐANG HỌC' : complete ? 'ÔN TẬP' : 'BẮT ĐẦU'}</button>
                           </div>}
                         </div>;
                       })}
@@ -170,24 +219,39 @@ export const LearningPathPage: React.FC = () => {
 
             <aside className="space-y-4 xl:sticky xl:top-6">
               <div className="grid grid-cols-3 gap-2">
-                <div aria-label="Chuỗi 7 ngày" className="flex items-center justify-center gap-1.5 rounded-xl border border-orange-100 bg-white px-2 py-3 shadow-sm"><Icon name="local_fire_department" className="text-xl text-orange-500" /><span className="text-xs font-extrabold text-slate-700">7 ngày</span></div>
-                <div aria-label="1,250 XP" className="flex items-center justify-center gap-1.5 rounded-xl border border-blue-100 bg-white px-2 py-3 shadow-sm"><Icon name="bolt" className="text-xl text-blue-500" /><span className="text-xs font-extrabold text-slate-700">1,250 XP</span></div>
-                <div aria-label="5 tim" className="flex items-center justify-center gap-1.5 rounded-xl border border-rose-100 bg-white px-2 py-3 shadow-sm"><Icon name="favorite" className="text-xl text-rose-500" /><span className="text-xs font-extrabold text-slate-700">5</span></div>
+                <div aria-label="Chuỗi 7 ngày" className="flex items-center justify-center gap-1.5 rounded-xl border border-orange-100 bg-white px-2 py-3 shadow-sm"><LearningIcon kind="flame" className="h-6 w-6" /><span className="text-xs font-extrabold text-slate-700">7 ngày</span></div>
+                <div aria-label="1,250 XP" className="flex items-center justify-center gap-1.5 rounded-xl border border-blue-100 bg-white px-2 py-3 shadow-sm"><LearningIcon kind="lightning" className="h-6 w-6" /><span className="text-xs font-extrabold text-slate-700">1,250 XP</span></div>
+                <div aria-label={`${lives.count} trên ${MAX_LEARNING_LIVES} lượt luyện tập còn lại`} title={lives.count === 0 && lives.refillAt ? `Hồi đầy sau ${formatRefillTimer(lives.refillAt - currentTime)}` : `${lives.count} lượt luyện tập còn lại`} className="flex min-h-[48px] flex-col items-center justify-center rounded-xl border border-rose-100 bg-white px-2 py-1.5 shadow-sm">
+                  <div className="flex items-center gap-0.5">{Array.from({ length: MAX_LEARNING_LIVES }, (_, index) => <HeartIcon key={index} active={index < lives.count} />)}</div>
+                  {lives.count === 0 && lives.refillAt && <span className="mt-0.5 text-[9px] font-semibold tabular-nums text-rose-600">{formatRefillTimer(lives.refillAt - currentTime)}</span>}
+                </div>
               </div>
 
               <section className="min-h-[150px] rounded-[20px] border border-slate-200 bg-white p-4 shadow-sm">
-                <div className="flex items-center justify-between gap-2"><h2 className="text-sm font-extrabold text-slate-700">Giải đấu Kim Cương</h2><button type="button" className="text-[10px] font-extrabold text-sky-600 hover:text-sky-800">XEM GIẢI ĐẤU</button></div>
-                <div className="mt-4 flex items-center gap-3"><span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-cyan-50 text-cyan-600"><Icon name="military_tech" className="text-3xl" /></span><div><p className="text-xs font-bold text-slate-700">Bạn đang ở vị trí thứ 9</p><p className="mt-1 text-xs text-slate-500">Cách nhóm xuống hạng 2 bậc!</p></div></div>
+                <div className="flex items-center justify-between gap-2"><h2 className="text-sm font-extrabold text-slate-700">Giải đấu {CURRENT_TOURNAMENT.tier}</h2><Link to="/achievements" className="text-[10px] font-extrabold text-sky-600 hover:text-sky-800">XEM GIẢI ĐẤU</Link></div>
+                <div className="mt-4 flex items-center gap-3">
+                  <span
+                    role="img"
+                    aria-label="Huy hiệu Kim Cương"
+                    className="h-14 w-14 shrink-0 bg-no-repeat"
+                    style={{
+                      backgroundImage: "url('/achievement-tiers.png')",
+                      backgroundSize: '500% 200%',
+                      backgroundPosition: `${CURRENT_TOURNAMENT.tierColumn * 25}% ${CURRENT_TOURNAMENT.tierRow * 100}%`,
+                    }}
+                  />
+                  <div><p className="text-xs font-bold text-slate-700">Bạn đang ở vị trí thứ 9</p><p className="mt-1 text-xs text-slate-500">Cách nhóm xuống hạng 2 bậc!</p></div>
+                </div>
               </section>
 
               <section className="rounded-[20px] border border-slate-200 bg-white p-4 shadow-sm">
                 <div className="flex items-center justify-between gap-2"><h2 className="text-sm font-extrabold text-slate-700">Nhiệm vụ hằng ngày</h2><button type="button" className="text-[10px] font-extrabold text-sky-600 hover:text-sky-800">XEM TẤT CẢ</button></div>
                 <div className="mt-4 space-y-5">
                   {[
-                    { icon: 'bolt', title: 'Kiếm 20 KN', value: 13, total: 20, tone: 'text-amber-500', bar: 'bg-amber-400' },
-                    { icon: 'task_alt', title: 'Làm đúng 5 câu liên tiếp trong 2 bài học', value: 1, total: 2, tone: 'text-emerald-500', bar: 'bg-amber-400' },
-                    { icon: 'mic', title: 'Hoàn thành 7 bài tập nói', value: 2, total: 7, tone: 'text-sky-500', bar: 'bg-amber-400' },
-                  ].map((task) => <div key={task.title} className="flex items-center gap-3"><Icon name={task.icon} className={`shrink-0 text-2xl ${task.tone}`} /><div className="min-w-0 flex-1"><p className="text-xs font-bold leading-snug text-slate-700">{task.title}</p><div className="mt-2 flex items-center gap-2"><div className="h-2.5 flex-1 overflow-hidden rounded-full bg-slate-200"><div className={`h-full rounded-full ${task.bar}`} style={{ width: `${Math.min(100, task.value / task.total * 100)}%` }} /></div><span className="shrink-0 text-[10px] font-bold text-slate-500">{task.value}/{task.total}</span></div></div><Icon name="redeem" className="shrink-0 text-xl text-amber-600" /></div>)}
+                    { icon: 'lightning', title: 'Kiếm 20 KN', value: 13, total: 20, tone: 'text-amber-500', bar: 'bg-amber-400' },
+                    { icon: 'target', title: 'Làm đúng 5 câu liên tiếp trong 2 bài học', value: 1, total: 2, tone: 'text-emerald-500', bar: 'bg-amber-400' },
+                    { icon: 'stopwatch', title: 'Hoàn thành 7 bài tập nói', value: 2, total: 7, tone: 'text-sky-500', bar: 'bg-amber-400' },
+                  ].map((task) => <div key={task.title} className="flex items-center gap-3"><LearningIcon kind={task.icon as LearningIconKind} className="h-7 w-7" /><div className="min-w-0 flex-1"><p className="text-xs font-bold leading-snug text-slate-700">{task.title}</p><div className="mt-2 flex items-center gap-2"><div className="h-2.5 flex-1 overflow-hidden rounded-full bg-slate-200"><div className={`h-full rounded-full ${task.bar}`} style={{ width: `${Math.min(100, task.value / task.total * 100)}%` }} /></div><span className="shrink-0 text-[10px] font-bold text-slate-500">{task.value}/{task.total}</span></div></div><LearningIcon kind="gift" className="h-6 w-6" /></div>)}
                 </div>
               </section>
             </aside>

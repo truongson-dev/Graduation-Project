@@ -1,66 +1,198 @@
-import { useState } from 'react';
 import { Link } from 'react-router';
 import { StudentPageLayout } from '../components/StudentPageLayout';
+import { AppIcon as Icon } from '../components/Common/AppIcon';
+import { CURRENT_TOURNAMENT } from '../lib/tournament';
 
-type Rank = { name: string; school: string; xp: number; initials: string; color: string };
-const rankings: Record<string, Rank[]> = {
-  'Tuần này': [
-    { name: 'Minh Anh', school: 'ĐH Ngoại Thương', xp: 1480, initials: 'MA', color: 'bg-rose-100 text-rose-700' },
-    { name: 'Đức Huy', school: 'ĐH Bách Khoa Hà Nội', xp: 1320, initials: 'ĐH', color: 'bg-sky-100 text-sky-700' },
-    { name: 'Thu Hà', school: 'ĐH Kinh Tế Quốc Dân', xp: 1190, initials: 'TH', color: 'bg-amber-100 text-amber-700' },
-    { name: 'Trương Thanh Sơn', school: 'Học viên SkillBridge', xp: 1080, initials: 'TS', color: 'bg-blue-100 text-blue-700' },
-    { name: 'Bảo Trâm', school: 'ĐH Ngoại Thương', xp: 960, initials: 'BT', color: 'bg-fuchsia-100 text-fuchsia-700' },
-    { name: 'Quốc Trung', school: 'ĐH Bách Khoa TP.HCM', xp: 870, initials: 'QT', color: 'bg-teal-100 text-teal-700' },
-  ],
-  'Tháng này': [
-    { name: 'Đức Huy', school: 'ĐH Bách Khoa Hà Nội', xp: 5620, initials: 'ĐH', color: 'bg-sky-100 text-sky-700' },
-    { name: 'Minh Anh', school: 'ĐH Ngoại Thương', xp: 5180, initials: 'MA', color: 'bg-rose-100 text-rose-700' },
-    { name: 'Trương Thanh Sơn', school: 'Học viên SkillBridge', xp: 4360, initials: 'TS', color: 'bg-blue-100 text-blue-700' },
-    { name: 'Thu Hà', school: 'ĐH Kinh Tế Quốc Dân', xp: 4180, initials: 'TH', color: 'bg-amber-100 text-amber-700' },
-    { name: 'Quốc Trung', school: 'ĐH Bách Khoa TP.HCM', xp: 3970, initials: 'QT', color: 'bg-teal-100 text-teal-700' },
-    { name: 'Bảo Trâm', school: 'ĐH Ngoại Thương', xp: 3760, initials: 'BT', color: 'bg-fuchsia-100 text-fuchsia-700' },
-  ],
-  'Tất cả': [
-    { name: 'Minh Anh', school: 'ĐH Ngoại Thương', xp: 18480, initials: 'MA', color: 'bg-rose-100 text-rose-700' },
-    { name: 'Trương Thanh Sơn', school: 'Học viên SkillBridge', xp: 16320, initials: 'TS', color: 'bg-blue-100 text-blue-700' },
-    { name: 'Đức Huy', school: 'ĐH Bách Khoa Hà Nội', xp: 14950, initials: 'ĐH', color: 'bg-sky-100 text-sky-700' },
-    { name: 'Thu Hà', school: 'ĐH Kinh Tế Quốc Dân', xp: 13180, initials: 'TH', color: 'bg-amber-100 text-amber-700' },
-    { name: 'Bảo Trâm', school: 'ĐH Ngoại Thương', xp: 11800, initials: 'BT', color: 'bg-fuchsia-100 text-fuchsia-700' },
-    { name: 'Quốc Trung', school: 'ĐH Bách Khoa TP.HCM', xp: 10440, initials: 'QT', color: 'bg-teal-100 text-teal-700' },
-  ],
+type Rank = {
+  name: string;
+  school: string;
+  xp: number;
+  initials: string;
+  color: string;
 };
 
-const badges = [
-  { icon: 'forum', title: 'Người mở lời', detail: 'Bắt đầu 5 cuộc thảo luận', color: 'bg-cyan-50 text-cyan-700', progress: '5/5' },
-  { icon: 'record_voice_over', title: 'Nói điều thuyết phục', detail: 'Hoàn thành 10 lượt luyện nói', color: 'bg-violet-50 text-violet-700', progress: '8/10' },
-  { icon: 'local_fire_department', title: 'Bền bỉ mỗi ngày', detail: 'Học liên tục trong 7 ngày', color: 'bg-orange-50 text-orange-600', progress: '7/7' },
+type Tier = {
+  name: string;
+  column: number;
+  row: number;
+};
+
+const tiers: Tier[] = [
+  { name: 'Đồng', column: 0, row: 0 },
+  { name: 'Bạc', column: 1, row: 0 },
+  { name: 'Vàng', column: 2, row: 0 },
+  { name: 'Lam Ngọc', column: 3, row: 0 },
+  { name: 'Hồng Ngọc', column: 4, row: 0 },
+  { name: 'Ngọc Lục Bảo', column: 0, row: 1 },
+  { name: 'Thạch Anh Tím', column: 1, row: 1 },
+  { name: 'Ngọc Trai', column: 2, row: 1 },
+  { name: 'Hắc Diệu Thạch', column: 3, row: 1 },
+  { name: 'Kim Cương', column: 4, row: 1 },
 ];
 
-function Icon({ name, className = '' }: { name: string; className?: string }) {
-  return <span aria-hidden="true" className={`material-symbols-outlined ${className}`}>{name}</span>;
+const weeklyRanking: Rank[] = [
+  { name: 'Minh Anh', school: 'ĐH Ngoại Thương', xp: 1480, initials: 'MA', color: 'bg-rose-100 text-rose-700' },
+  { name: 'Đức Huy', school: 'ĐH Bách Khoa Hà Nội', xp: 1320, initials: 'ĐH', color: 'bg-sky-100 text-sky-700' },
+  { name: 'Thu Hà', school: 'ĐH Kinh Tế Quốc Dân', xp: 1190, initials: 'TH', color: 'bg-amber-100 text-amber-700' },
+  { name: 'Trương Thanh Sơn', school: 'Học viên SkillBridge', xp: 1080, initials: 'TS', color: 'bg-blue-100 text-blue-700' },
+  { name: 'Bảo Trâm', school: 'ĐH Ngoại Thương', xp: 960, initials: 'BT', color: 'bg-fuchsia-100 text-fuchsia-700' },
+  { name: 'Quốc Trung', school: 'ĐH Bách Khoa TP.HCM', xp: 870, initials: 'QT', color: 'bg-teal-100 text-teal-700' },
+  { name: 'Hải Yến', school: 'Học viện SkillBridge', xp: 810, initials: 'HY', color: 'bg-orange-100 text-orange-700' },
+  { name: 'Gia Bảo', school: 'ĐH Kinh Tế TP.HCM', xp: 745, initials: 'GB', color: 'bg-indigo-100 text-indigo-700' },
+  { name: 'Khánh Linh', school: 'ĐH FPT', xp: 690, initials: 'KL', color: 'bg-emerald-100 text-emerald-700' },
+  { name: 'Hoàng Long', school: 'ĐH Công Nghệ', xp: 640, initials: 'HL', color: 'bg-violet-100 text-violet-700' },
+];
+
+const rankings: Record<string, Rank[]> = {
+  'Tuần này': weeklyRanking,
+  'Tháng này': weeklyRanking.map((person, index) => ({ ...person, xp: person.xp * 4 - index * 35 })),
+  'Tất cả': weeklyRanking.map((person, index) => ({ ...person, xp: person.xp * 12 - index * 120 })),
+};
+
+const CURRENT_USER = 'Trương Thanh Sơn';
+const CURRENT_TIER = CURRENT_TOURNAMENT.tier;
+
+function TierEmblem({ tier, active }: { tier: Tier; active: boolean }) {
+  return (
+    <div className="flex min-w-[72px] flex-col items-center gap-1.5">
+      <div
+        aria-hidden="true"
+        className={`bg-no-repeat transition-transform duration-200 ${active ? 'h-20 w-20 scale-110' : 'h-12 w-12 opacity-70'}`}
+        style={{
+          backgroundImage: "url('/achievement-tiers.png')",
+          backgroundSize: '500% 200%',
+          backgroundPosition: `${tier.column * 25}% ${tier.row * 100}%`,
+        }}
+      />
+      <span className={`max-w-[82px] text-center text-[10px] font-semibold leading-tight ${active ? 'text-amber-700' : 'text-slate-400'}`}>
+        {tier.name}
+      </span>
+    </div>
+  );
+}
+
+function RankMarker({ place }: { place: number }) {
+  if (place > 3) {
+    return <span className="w-8 text-center text-sm font-extrabold tabular-nums text-slate-500">{place}</span>;
+  }
+
+  const medalColor = {
+    1: { fill: '#facc15', ribbon: '#eab308', stroke: '#ca8a04' },
+    2: { fill: '#cbd5e1', ribbon: '#94a3b8', stroke: '#64748b' },
+    3: { fill: '#fdba74', ribbon: '#f97316', stroke: '#c2410c' },
+  }[place as 1 | 2 | 3];
+
+  return (
+    <span className="flex h-8 w-8 items-center justify-center" aria-label={`Hạng ${place}`}>
+      <svg aria-hidden="true" viewBox="0 0 32 36" className="h-8 w-7 drop-shadow-sm">
+        <path d="M8 19 7 34l9-5 9 5-1-15" fill={medalColor.ribbon} />
+        <circle cx="16" cy="13" r="11" fill={medalColor.fill} stroke={medalColor.stroke} strokeWidth="2" />
+        <text x="16" y="17" textAnchor="middle" fontSize="12" fontWeight="800" fill={medalColor.stroke}>{place}</text>
+      </svg>
+    </span>
+  );
 }
 
 export function AchievementsPage() {
-  const [period, setPeriod] = useState('Tuần này');
-  const ranking = rankings[period];
-  const podium = [ranking[1], ranking[0], ranking[2]];
-  return <StudentPageLayout active="/achievements" title="Thành tích & vinh danh">
-    <section className="relative overflow-hidden rounded-[26px] bg-gradient-to-br from-[#123a79] via-blue-700 to-sky-500 p-6 text-white shadow-lg shadow-blue-900/10 sm:p-8">
-      <div aria-hidden="true" className="absolute -right-16 -top-24 h-72 w-72 rounded-full border-[34px] border-white/10" />
-      <div className="relative flex flex-wrap items-center justify-between gap-5"><div className="max-w-2xl"><p className="text-[11px] font-bold uppercase tracking-[.16em] text-sky-100">THÀNH TỰU CỦA BẠN</p><h2 className="mt-1 text-2xl font-extrabold sm:text-3xl">Ghi nhận từng bước tiến</h2><p className="mt-2 text-sm leading-relaxed text-blue-50">Xem lại những kỹ năng bạn đã rèn luyện, theo dõi mục tiêu và chinh phục cột mốc tiếp theo.</p></div><div className="flex items-center gap-3 rounded-2xl border border-white/20 bg-white/10 px-4 py-3 backdrop-blur"><Icon name="workspace_premium" className="text-3xl text-amber-300" /><div><p className="text-[10px] font-semibold text-blue-100">XP CỦA BẠN</p><p className="text-xl font-extrabold">1,250 XP</p></div></div></div>
-    </section>
+  const ranking = rankings['Tuần này'];
+  const currentUserIndex = ranking.findIndex((person) => person.name === CURRENT_USER);
+  const currentUser = ranking[currentUserIndex];
+  const currentTierIndex = tiers.findIndex((tier) => tier.name === CURRENT_TIER);
+  const visibleTiers = tiers.slice(0, currentTierIndex + 1);
+  const topPercent = currentUserIndex >= 0 ? Math.ceil(((currentUserIndex + 1) / ranking.length) * 100) : 100;
 
-    <section className="mt-6 grid gap-5 xl:grid-cols-[minmax(0,1.25fr)_minmax(320px,.75fr)]">
-      <div className="rounded-[22px] border border-slate-200/80 bg-white p-5 shadow-sm sm:p-6">
-        <div className="flex flex-wrap items-center justify-between gap-3"><div><h2 className="text-lg font-bold text-[#213a61]">Bảng vinh danh</h2><p className="mt-1 text-xs text-slate-500">Tôn vinh sự chăm chỉ và tiến bộ của học viên.</p></div><div className="flex rounded-xl bg-slate-100 p-1">{Object.keys(rankings).map((name) => <button type="button" key={name} onClick={() => setPeriod(name)} className={`rounded-lg px-3 py-2 text-[11px] font-bold transition ${period === name ? 'bg-white text-blue-700 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}>{name}</button>)}</div></div>
-        <div className="mt-7 grid grid-cols-3 items-end gap-2 sm:gap-4">{podium.map((person, index) => { const place = index === 1 ? 1 : index === 0 ? 2 : 3; const height = place === 1 ? 'h-36' : place === 2 ? 'h-28' : 'h-24'; const medal = place === 1 ? 'text-amber-500' : place === 2 ? 'text-slate-400' : 'text-orange-600'; return <div key={person.name} className="flex min-w-0 flex-col items-center text-center"><div className="relative mb-2"><span className={`flex h-12 w-12 items-center justify-center rounded-full text-xs font-extrabold ring-4 ring-white shadow-md sm:h-14 sm:w-14 ${person.color}`}>{person.initials}</span><span className={`absolute -right-1 -top-2 flex h-6 w-6 items-center justify-center rounded-full bg-white shadow ${medal}`}><Icon name={place === 1 ? 'workspace_premium' : 'military_tech'} className="text-lg" /></span></div><p className="max-w-full truncate text-xs font-bold text-slate-800 sm:text-sm">{person.name}</p><p className="mt-0.5 text-[10px] text-slate-400">{person.xp.toLocaleString('vi-VN')} XP</p><div className={`mt-3 flex w-full flex-col items-center justify-center rounded-t-2xl bg-gradient-to-b from-blue-50 to-sky-100 ${height}`}><span className="text-2xl font-black text-blue-700">{place}</span><span className="text-[10px] font-semibold text-blue-500">HẠNG</span></div></div>; })}</div>
-        <div className="mt-4 rounded-2xl bg-[#f7f9fd] p-2 sm:p-3">{ranking.slice(3).map((person, index) => <div key={person.name} className="flex items-center gap-3 rounded-xl px-2 py-3 sm:px-3"><span className="w-6 text-center text-xs font-bold text-slate-400">{index + 4}</span><span className={`flex h-9 w-9 items-center justify-center rounded-full text-[10px] font-bold ${person.color}`}>{person.initials}</span><div className="min-w-0 flex-1"><p className="truncate text-xs font-bold text-slate-800">{person.name}</p><p className="truncate text-[10px] text-slate-400">{person.school}</p></div><span className="text-xs font-extrabold text-blue-700">{person.xp.toLocaleString('vi-VN')} XP</span></div>)}</div>
-      </div>
+  return (
+    <StudentPageLayout active="/achievements" title="Thành tích">
+      <div className="mx-auto w-full max-w-5xl pb-10">
+        <section className="rounded-2xl border border-slate-200 bg-white shadow-[0_18px_45px_rgba(30,64,175,0.08)]">
+          <header className="sticky top-0 z-20 isolate overflow-hidden rounded-t-2xl border-b border-amber-200 bg-gradient-to-b from-amber-100 via-yellow-50 to-white px-4 pb-5 pt-5 sm:px-7 sm:pt-7">
+            <svg aria-hidden="true" viewBox="0 0 900 240" preserveAspectRatio="none" className="pointer-events-none absolute inset-0 -z-10 h-full w-full opacity-70">
+              <g fill="none" stroke="#f4b400" strokeLinecap="round" strokeWidth="3">
+                <path d="M95 88v-18m0 72v-18M59 106h18m36 0h18M70 81l13 13m25 25 13 13m0-51-13 13m-25 25-13 13" />
+                <path d="M795 61V43m0 72V97m-36-18h18m36 0h18m-61-25 13 13m25 25 13 13m0-51-13 13m-25 25-13 13" />
+                <path d="M238 48v-9m0 38v-9m-19-10h9m20 0h9m-33-13 7 7m14 14 7 7m0-28-7 7m-14 14-7 7" />
+                <path d="M655 130v-10m0 42v-10m-21-11h10m22 0h10m-36-15 7 7m15 15 7 7m0-29-7 7m-15 15-7 7" />
+              </g>
+              <g fill="#fb923c"><circle cx="95" cy="106" r="4"/><circle cx="795" cy="79" r="4"/><circle cx="238" cy="58" r="3"/><circle cx="655" cy="141" r="3"/></g>
+            </svg>
+            <div className="relative text-center">
+                <p className="text-xs font-bold uppercase tracking-[0.14em] text-blue-600">Hạng của bạn</p>
+                <h1 className="mt-1 text-2xl font-extrabold tracking-tight text-[#18345d]">Giải đấu {CURRENT_TIER}</h1>
+                <p className="mt-1 text-sm font-semibold text-amber-600">Còn {CURRENT_TOURNAMENT.daysRemaining} ngày</p>
+            </div>
 
-      <div className="flex flex-col gap-5">
-        <section className="rounded-[22px] border border-slate-200/80 bg-white p-5 shadow-sm"><div className="flex items-center justify-between"><div><h2 className="text-lg font-bold text-[#213a61]">Huy hiệu của bạn</h2><p className="mt-1 text-xs text-slate-500">Ghi nhận những kỹ năng bạn đã rèn luyện.</p></div><Icon name="military_tech" className="text-3xl text-amber-500" /></div><div className="mt-4 flex flex-col gap-3">{badges.map((badge) => <div key={badge.title} className="flex items-center gap-3 rounded-2xl border border-slate-100 p-3"><span className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-xl ${badge.color}`}><Icon name={badge.icon} className="text-[23px]" /></span><div className="min-w-0 flex-1"><div className="flex items-center justify-between gap-2"><p className="truncate text-xs font-bold text-slate-800">{badge.title}</p><span className="text-[10px] font-bold text-blue-700">{badge.progress}</span></div><p className="mt-0.5 text-[10px] text-slate-500">{badge.detail}</p></div></div>)}</div></section>
-        <section className="flex min-h-[220px] flex-1 flex-col rounded-[22px] border border-blue-100 bg-gradient-to-br from-white to-sky-50 p-5 shadow-sm"><p className="text-xs font-bold uppercase tracking-wide text-blue-700">Chặng tiếp theo</p><h2 className="mt-1 text-lg font-extrabold text-[#213a61]">Tiếp tục tích lũy XP</h2><p className="mt-1 text-xs leading-relaxed text-slate-500">Hoàn thành bài luyện tập và chia sẻ góc nhìn để tiến gần hơn tới thứ hạng mới.</p><Link to="/learning-path" className="mt-auto inline-flex items-center gap-2 self-start rounded-xl bg-blue-700 px-4 py-2.5 text-xs font-bold text-white hover:bg-blue-800">Xem lộ trình <Icon name="arrow_forward" className="text-sm" /></Link></section>
+            <div className="mt-5 pb-2">
+              <div className="flex items-end justify-center gap-1 sm:gap-3">
+                {visibleTiers.map((tier) => (
+                  <TierEmblem key={tier.name} tier={tier} active={tier.name === CURRENT_TIER} />
+                ))}
+              </div>
+            </div>
+          </header>
+
+          <div className="border-b border-slate-100 px-4 py-4 sm:px-7">
+            <div>
+              <h2 className="text-base font-extrabold text-[#18345d]">Bảng xếp hạng</h2>
+            </div>
+          </div>
+
+          <div className="space-y-1 px-2 py-2 sm:px-4" aria-label="Bảng xếp hạng tuần này">
+            {ranking.map((person, index) => {
+              const place = index + 1;
+              const isCurrentUser = person.name === CURRENT_USER;
+
+              return (
+                <div
+                  key={person.name}
+                  className={`flex items-center gap-3 rounded-xl px-3 py-3 transition sm:px-4 ${
+                    isCurrentUser
+                      ? 'bg-blue-50 ring-1 ring-inset ring-blue-100'
+                      : index % 2 === 0
+                        ? 'bg-slate-50/80'
+                        : 'bg-white'
+                  }`}
+                >
+                  <RankMarker place={place} />
+                  <span className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-xs font-extrabold ${person.color}`}>
+                    {person.initials}
+                  </span>
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-center gap-2">
+                      <p className="truncate text-sm font-bold text-slate-800">{person.name}</p>
+                      {isCurrentUser && (
+                        <span className="rounded-md bg-blue-600 px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wide text-white">Bạn</span>
+                      )}
+                    </div>
+                    <p className="mt-0.5 truncate text-[11px] text-slate-500">{person.school}</p>
+                  </div>
+                  <span className="shrink-0 text-sm font-extrabold tabular-nums text-[#18345d]">
+                    {person.xp.toLocaleString('vi-VN')} XP
+                  </span>
+                </div>
+              );
+            })}
+          </div>
+
+          <footer className="flex flex-wrap items-center justify-between gap-3 border-t border-slate-100 bg-slate-50/70 px-4 py-4 sm:px-7">
+            <div className="flex items-center gap-3">
+              <span className="flex h-10 min-w-10 items-center justify-center rounded-xl bg-blue-50 px-2 text-sm font-extrabold text-blue-700">
+                {topPercent}%
+              </span>
+              <div>
+                <p className="text-xs font-bold text-slate-800">Bạn đang nằm trong top {topPercent}% người học tốt</p>
+                <p className="mt-0.5 text-[11px] text-slate-500">{currentUser?.xp.toLocaleString('vi-VN')} XP tích lũy — mỗi bài luyện giúp bạn tiến xa hơn.</p>
+              </div>
+            </div>
+            <Link
+              to="/learning-path"
+              className="inline-flex items-center gap-1.5 rounded-xl bg-blue-700 px-4 py-2.5 text-xs font-bold text-white transition hover:bg-blue-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-400 focus-visible:ring-offset-2"
+            >
+              Tiếp tục học
+              <Icon name="arrow_forward" className="text-base" />
+            </Link>
+          </footer>
+        </section>
       </div>
-    </section>
-  </StudentPageLayout>;
+    </StudentPageLayout>
+  );
 }

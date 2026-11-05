@@ -1,4 +1,5 @@
 import React from 'react';
+import { AppIcon } from './AppIcon';
 
 interface HeaderProps {
   onOpenHelp?: () => void;
@@ -10,7 +11,7 @@ export const Header: React.FC<HeaderProps> = ({ onOpenHelp }) => {
       {/* Brand Logo */}
       <div className="flex items-center gap-3">
         <div className="w-10 h-10 rounded-xl bg-[#002045] flex items-center justify-center text-white shadow-sm transition-transform hover:scale-105">
-          <span className="material-symbols-outlined text-[24px]">school</span>
+          <AppIcon name="school" className="text-[24px]" />
         </div>
         <div className="flex flex-col">
           <span className="text-xl font-bold tracking-tight text-[#002045] leading-none">
@@ -30,9 +31,7 @@ export const Header: React.FC<HeaderProps> = ({ onOpenHelp }) => {
           onClick={onOpenHelp}
           className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg border border-slate-200 hover:border-slate-300 hover:bg-slate-50 text-slate-700 transition cursor-pointer active:scale-95"
         >
-          <span className="material-symbols-outlined text-[18px] text-slate-500">
-            help_outline
-          </span>
+          <AppIcon name="help_outline" className="text-[18px] text-slate-500" />
           <span className="font-medium text-sm">Trung tâm trợ giúp</span>
         </button>
       </div>

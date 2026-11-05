@@ -204,14 +204,11 @@ body {
   box-shadow: 0 2px 8px -1px rgba(0, 32, 69, 0.08);
 }
 
-/* Material symbol styling helper */
-.material-symbols-outlined {
-  font-variation-settings:
-    'FILL' 0,
-    'wght' 400,
-    'GRAD' 0,
-    'opsz' 24;
-  display: inline-block;
-  vertical-align: middle;
-  line-height: 1;
+.hide-scrollbar {
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+
+.hide-scrollbar::-webkit-scrollbar {
+  display: none;
 }

@@ -1,14 +1,15 @@
 import { useEffect, useRef, useState, type ChangeEvent, type DragEvent } from 'react';
 import { useNavigate } from 'react-router';
 import { StudentPageLayout } from '../components/StudentPageLayout';
+import { AppIcon as Icon } from '../components/Common/AppIcon';
+import { API_ROOT } from '../lib/api';
 import { extractSlideText } from '../lib/slide';
+import { getPresentationHistory, type PresentationHistoryEntry } from '../lib/presentation-history';
 
-type IconName = string;
 type PracticeFile = { file: File; url: string };
+type NetworkStatus = 'checking' | 'stable' | 'weak' | 'poor' | 'offline';
 
-function Icon({ name, className = '' }: { name: IconName; className?: string }) {
-  return <span aria-hidden="true" className={`material-symbols-outlined ${className}`}>{name}</span>;
-}
+const MAX_PDF_SIZE_BYTES = 100 * 1024 * 1024;
 
 function formatSize(bytes: number) {
   return bytes >= 1024 * 1024 ? `${(bytes / (1024 * 1024)).toFixed(1)} MB` : `${Math.max(1, Math.round(bytes / 1024))} KB`;
@@ -35,29 +36,76 @@ export const PracticeSetupPage: React.FC = () => {
   const [notice, setNotice] = useState('');
   const [dragActive, setDragActive] = useState(false);
   const [language, setLanguage] = useState<'vi' | 'en'>('vi');
-  const [networkReady, setNetworkReady] = useState(() => typeof navigator !== 'undefined' && navigator.onLine);
+  const [networkStatus, setNetworkStatus] = useState<NetworkStatus>(() => (
+    typeof navigator !== 'undefined' && navigator.onLine ? 'checking' : 'offline'
+  ));
+  const [presentationHistory, setPresentationHistory] = useState<PresentationHistoryEntry[]>(getPresentationHistory);
 
   useEffect(() => {
-    type NetworkConnection = EventTarget & { effectiveType?: string; rtt?: number; downlink?: number };
-    const nav = navigator as Navigator & { connection?: NetworkConnection; mozConnection?: NetworkConnection; webkitConnection?: NetworkConnection };
-    const connection = nav.connection ?? nav.mozConnection ?? nav.webkitConnection;
+    const syncHistory = () => setPresentationHistory(getPresentationHistory());
+    window.addEventListener('storage', syncHistory);
+    return () => window.removeEventListener('storage', syncHistory);
+  }, []);
 
-    const updateNetworkStatus = () => {
-      const slowConnection = connection?.effectiveType === 'slow-2g'
-        || connection?.effectiveType === '2g'
-        || (connection?.rtt !== undefined && connection.rtt > 500)
-        || (connection?.downlink !== undefined && connection.downlink < 0.5);
-      setNetworkReady(navigator.onLine && !slowConnection);
+  useEffect(() => {
+    let disposed = false;
+    let activeController: AbortController | null = null;
+
+    const updateNetworkStatus = async () => {
+      if (document.hidden) return;
+      if (!navigator.onLine) {
+        setNetworkStatus('offline');
+        return;
+      }
+
+      activeController?.abort();
+      const controller = new AbortController();
+      activeController = controller;
+      const timeoutId = window.setTimeout(() => controller.abort(), 5000);
+      const startedAt = performance.now();
+
+      try {
+        const response = await fetch(`${API_ROOT}/health`, {
+          cache: 'no-store',
+          signal: controller.signal,
+          headers: { Accept: 'application/json' },
+        });
+        const latency = performance.now() - startedAt;
+
+        if (disposed || !response.ok) {
+          if (!disposed) setNetworkStatus('offline');
+          return;
+        }
+
+        setNetworkStatus(latency > 1800 ? 'poor' : latency > 800 ? 'weak' : 'stable');
+      } catch {
+        if (!disposed && document.hidden) return;
+        if (!disposed && !controller.signal.aborted) setNetworkStatus('offline');
+        else if (!disposed && controller.signal.aborted) setNetworkStatus('poor');
+      } finally {
+        window.clearTimeout(timeoutId);
+        if (activeController === controller) activeController = null;
+      }
     };
 
-    updateNetworkStatus();
+    void updateNetworkStatus();
+    const intervalId = window.setInterval(() => {
+      if (!document.hidden) void updateNetworkStatus();
+    }, 15000);
+    const handleVisibilityChange = () => {
+      if (document.hidden) activeController?.abort();
+      else void updateNetworkStatus();
+    };
     window.addEventListener('online', updateNetworkStatus);
     window.addEventListener('offline', updateNetworkStatus);
-    connection?.addEventListener('change', updateNetworkStatus);
+    document.addEventListener('visibilitychange', handleVisibilityChange);
     return () => {
+      disposed = true;
+      window.clearInterval(intervalId);
+      activeController?.abort();
       window.removeEventListener('online', updateNetworkStatus);
       window.removeEventListener('offline', updateNetworkStatus);
-      connection?.removeEventListener('change', updateNetworkStatus);
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
     };
   }, []);
 
@@ -78,12 +126,12 @@ export const PracticeSetupPage: React.FC = () => {
   const acceptFile = (candidate?: File) => {
     if (!candidate) return;
     const extension = candidate.name.split('.').pop()?.toLowerCase();
-    if (!['pdf', 'ppt', 'pptx'].includes(extension ?? '')) {
-      setNotice('Vui lòng chọn file định dạng PDF, PPT hoặc PPTX.');
+    if (extension !== 'pdf') {
+      setNotice('Vui lòng chọn file PDF.');
       return;
     }
-    if (candidate.size > 50 * 1024 * 1024) {
-      setNotice('File vượt quá giới hạn dung lượng 50 MB.');
+    if (candidate.size > MAX_PDF_SIZE_BYTES) {
+      setNotice('File PDF vượt quá giới hạn dung lượng 100 MB.');
       return;
     }
     if (fileUrlRef.current) URL.revokeObjectURL(fileUrlRef.current);
@@ -186,12 +234,17 @@ export const PracticeSetupPage: React.FC = () => {
 
   const previewFile = () => {
     if (!file) return;
-    if (file.file.type === 'application/pdf' || file.file.name.toLowerCase().endsWith('.pdf')) {
-      window.open(file.url, '_blank', 'noopener,noreferrer');
-    } else {
-      setNotice('Đã chọn slide PowerPoint. Bạn có thể xem slide đầy đủ khi bước vào phiên thuyết trình trực tiếp.');
-    }
+    window.open(file.url, '_blank', 'noopener,noreferrer');
   };
+
+  const networkReady = networkStatus === 'stable';
+  const networkIndicator = {
+    checking: { label: 'Đang kiểm tra mạng', color: 'bg-slate-500 hover:bg-slate-400' },
+    stable: { label: 'Mạng ổn định', color: 'bg-emerald-500 hover:bg-emerald-400' },
+    weak: { label: 'Mạng yếu', color: 'bg-amber-500 hover:bg-amber-400' },
+    poor: { label: 'Mạng rất yếu', color: 'bg-rose-600 hover:bg-rose-500' },
+    offline: { label: 'Mất kết nối mạng', color: 'bg-rose-600 hover:bg-rose-500' },
+  }[networkStatus];
 
   const startPractice = () => {
     if (!file || cameraState !== 'ready' || micState !== 'ready' || !networkReady) return;
@@ -210,49 +263,34 @@ export const PracticeSetupPage: React.FC = () => {
   };
 
   const canStartPractice = Boolean(file) && cameraState === 'ready' && micState === 'ready' && networkReady;
+  const openHistoryEntry = (entry: PresentationHistoryEntry) => {
+    navigate('/practice/review', {
+      state: { presentationReview: entry.review, isHistoricalReview: true },
+    });
+  };
 
   return (
     <StudentPageLayout active="/practice/setup" title="Chuẩn bị thuyết trình">
       <div className="mx-auto max-w-[1500px] pb-10">
-        {/* Page Subtitle / Introduction */}
-        <div className="mb-6 rounded-2xl bg-white p-5 border border-slate-200/80 shadow-xs">
-          <div className="flex flex-wrap items-center justify-between gap-3">
-            <div>
-              <h1 className="text-xl font-extrabold text-[#19345d] sm:text-2xl flex items-center gap-2.5">
-                <Icon name="co_present" className="text-blue-700 text-28px" /> Thiết lập phòng luyện tập thuyết trình
-              </h1>
-              <p className="mt-1 text-xs text-slate-500 max-w-2xl">
-                Tải lên slide nội dung và kiểm tra thiết bị ghi hình, âm thanh để trợ lý AI sẵn sàng theo dõi và đánh giá bạn.
-              </p>
-            </div>
-            <div className="flex items-center gap-2">
-              <span className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-semibold border ${networkReady ? 'bg-slate-100 text-slate-700 border-slate-200' : 'bg-rose-50 text-rose-700 border-rose-200'}`}>
-                <Icon name={networkReady ? 'wifi' : 'wifi_off'} className="text-sm" />
-                {networkReady ? 'Kết nối mạng ổn định' : 'Mạng chưa ổn định'}
-              </span>
-            </div>
-          </div>
-        </div>
-
         {/* 2-Column Studio Setup Grid */}
-        <div className="grid grid-cols-1 items-start gap-6 lg:grid-cols-2">
+        <div className="grid grid-cols-1 items-stretch gap-6 lg:grid-cols-2">
           {/* Left Column: Slide & Tips */}
           <div className="flex flex-col gap-6">
             {/* Slide Upload Card */}
             <section className="rounded-2xl border border-slate-200/80 bg-white p-5 shadow-xs">
               <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
                 <h2 className="flex items-center gap-2 text-base font-bold text-[#19345d]">
-                  <Icon name="description" className="text-blue-700" /> Tài liệu &amp; Slide thuyết trình
+                  <Icon name="description" className="text-blue-700" /> Tài liệu thuyết trình
                 </h2>
                 <span className="rounded-full bg-slate-100 border border-slate-200/70 px-2.5 py-0.5 text-[11px] font-semibold text-slate-600">
-                  PDF, PPT, PPTX • Tối đa 50 MB
+                  PDF • Tối đa 100 MB
                 </span>
               </div>
 
               <input
                 ref={fileInputRef}
                 type="file"
-                accept=".pdf,.ppt,.pptx,application/pdf,application/vnd.ms-powerpoint,application/vnd.openxmlformats-officedocument.presentationml.presentation"
+                accept=".pdf,application/pdf"
                 className="sr-only"
                 aria-label="Chọn slide thuyết trình"
                 onChange={handleFileInput}
@@ -265,7 +303,7 @@ export const PracticeSetupPage: React.FC = () => {
                 }}
                 onDragLeave={() => setDragActive(false)}
                 onDrop={handleDrop}
-                className={`rounded-2xl border-2 border-dashed px-4 py-8 text-center transition ${
+                className={`rounded-2xl border-2 border-dashed px-4 py-10 text-center transition ${
                   dragActive ? 'border-blue-500 bg-blue-50/40' : 'border-slate-200 bg-slate-50/50 hover:bg-slate-50'
                 }`}
               >
@@ -274,7 +312,7 @@ export const PracticeSetupPage: React.FC = () => {
                     <div className="flex flex-wrap items-center gap-3">
                       <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-rose-50 text-rose-600 border border-rose-100 shadow-2xs">
                         <Icon
-                          name={file.file.name.toLowerCase().endsWith('.pdf') ? 'picture_as_pdf' : 'slideshow'}
+                          name="picture_as_pdf"
                           className="text-2xl text-rose-600"
                         />
                       </span>
@@ -309,7 +347,7 @@ export const PracticeSetupPage: React.FC = () => {
                             setFile(null);
                             setSlideContent('');
                           }}
-                          className="flex h-9 w-9 items-center justify-center rounded-lg text-slate-400 hover:bg-rose-50 hover:text-rose-600 transition cursor-pointer"
+                          className="flex h-9 w-9 items-center justify-center rounded-lg text-rose-700 hover:bg-rose-50 hover:text-rose-800 transition cursor-pointer"
                         >
                           <Icon name="close" />
                         </button>
@@ -322,7 +360,7 @@ export const PracticeSetupPage: React.FC = () => {
                       <Icon name="cloud_upload" className="text-3xl" />
                     </span>
                     <p className="mt-3 text-sm font-bold text-slate-700">
-                      Kéo thả slide của bạn vào đây hoặc{' '}
+                      Kéo thả PDF của bạn vào đây hoặc{' '}
                       <button
                         type="button"
                         onClick={() => fileInputRef.current?.click()}
@@ -332,7 +370,7 @@ export const PracticeSetupPage: React.FC = () => {
                       </button>
                     </p>
                     <p className="mt-1 text-xs text-slate-500">
-                      Hỗ trợ tập tin PDF (.pdf) hoặc bản trình chiếu PowerPoint (.ppt, .pptx)
+                      Hỗ trợ tập tin PDF (.pdf) tối đa 100 MB
                     </p>
                   </div>
                 )}
@@ -346,12 +384,12 @@ export const PracticeSetupPage: React.FC = () => {
             </section>
 
             {/* Practical AI Presentation Tips Card */}
-            <section className="rounded-2xl border border-blue-100 bg-gradient-to-br from-blue-50/50 via-white to-sky-50/30 p-5 shadow-xs">
+            <section className="flex flex-1 flex-col rounded-2xl border border-blue-100 bg-gradient-to-br from-blue-50/50 via-white to-sky-50/30 p-5 shadow-xs">
               <h3 className="flex items-center gap-2 text-sm font-bold text-[#19345d]">
                 <Icon name="tips_and_updates" className="text-amber-500 text-lg" />
                 Bí quyết đạt điểm cao từ AI đánh giá 4 trụ cột
               </h3>
-              <div className="mt-3 space-y-2.5 text-xs text-slate-600 leading-relaxed">
+              <div className="mt-3 flex flex-1 flex-col justify-evenly gap-3 text-xs leading-relaxed text-slate-600">
                 <div className="flex items-start gap-2.5">
                   <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-blue-100 text-blue-800 font-bold text-[11px]">
                     1
@@ -383,26 +421,9 @@ export const PracticeSetupPage: React.FC = () => {
           {/* Right Column: Camera, Audio & Launch */}
           <div className="flex flex-col gap-6">
             <section className="rounded-2xl border border-slate-200/80 bg-white p-5 shadow-xs">
-              <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
-                <h2 className="flex items-center gap-2 text-base font-bold text-[#19345d]">
-                  <Icon name="devices" className="text-blue-700" /> Kiểm tra Camera &amp; Micro
-                </h2>
-                <div className="flex items-center gap-2 text-xs">
-                  <span className="flex items-center gap-1 font-semibold text-slate-600">
-                    <span className={`h-2 w-2 rounded-full ${cameraState === 'ready' ? 'bg-blue-600' : 'bg-slate-300'}`} />
-                    Cam: {cameraState === 'ready' ? 'Bật' : 'Tắt'}
-                  </span>
-                  <span className="text-slate-300">•</span>
-                  <span className="flex items-center gap-1 font-semibold text-slate-600">
-                    <span className={`h-2 w-2 rounded-full ${micState === 'ready' ? 'bg-blue-600' : 'bg-slate-300'}`} />
-                    Mic: {micState === 'ready' ? 'Bật' : 'Tắt'}
-                  </span>
-                </div>
-              </div>
-
               {/* Video Screen Container - Clean, No Dashed Lines, No Face Tracking Box */}
               <div className="relative aspect-video overflow-hidden rounded-2xl bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 shadow-inner">
-                {cameraState === 'ready' ? (
+                {cameraState === 'ready' && (
                   <video
                     ref={videoRef}
                     autoPlay
@@ -410,26 +431,17 @@ export const PracticeSetupPage: React.FC = () => {
                     playsInline
                     className="h-full w-full scale-x-[-1] object-cover"
                   />
-                ) : (
-                  <div className="absolute inset-0 flex flex-col items-center justify-center px-6 text-center text-white">
-                    <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-white/10 backdrop-blur-md border border-white/15 shadow-sm">
-                      <Icon name="videocam" className="text-3xl text-slate-200" />
-                    </div>
-                    <p className="mt-3 text-sm font-bold text-white">
-                      {cameraState === 'error' ? 'Không thể truy cập camera' : 'Camera đang tắt'}
-                    </p>
-                    <p className="mt-1 text-xs text-slate-300 max-w-xs">
-                      Bật camera để kiểm tra góc nhìn, ánh sáng và phong thái trước khi bắt đầu.
-                    </p>
-                    <button
-                      type="button"
-                      onClick={() => void toggleCamera()}
-                      className="mt-4 inline-flex items-center gap-1.5 rounded-xl bg-blue-600 px-4 py-2 text-xs font-bold text-white hover:bg-blue-500 transition shadow cursor-pointer"
-                    >
-                      <Icon name="videocam" className="text-base" /> Bật Camera ngay
-                    </button>
-                  </div>
                 )}
+
+                <span
+                  role="status"
+                  aria-live="polite"
+                  aria-label={networkIndicator.label}
+                  title={networkIndicator.label}
+                  className={`absolute bottom-3 left-3 flex h-10 w-10 items-center justify-center rounded-full text-white shadow-lg transition-colors ${networkIndicator.color}`}
+                >
+                  <Icon name="wifi" className="text-xl" />
+                </span>
 
                 {/* Floating Media Toggle Controls (Bottom Right) */}
                 <div className="absolute bottom-3 right-3 flex items-center gap-2 rounded-full bg-slate-900/85 p-1.5 text-white shadow-lg backdrop-blur-md border border-white/10">
@@ -471,10 +483,10 @@ export const PracticeSetupPage: React.FC = () => {
 
               {/* Microphone Testing Box - ONLY renders when mic is toggled ON */}
               {micState === 'ready' && (
-                <div className="mt-4 rounded-xl bg-slate-50 border border-slate-200 p-3.5 sm:p-4">
-                  <div className="flex flex-wrap items-center justify-between gap-2 text-xs text-slate-700">
+                <div className="mt-3 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5">
+                  <div className="flex flex-wrap items-center justify-between gap-1.5 text-[11px] text-slate-700">
                     <span className="flex items-center gap-1.5 font-medium">
-                      <Icon name="mic" className="text-blue-700 text-base" />
+                      <Icon name="mic" className="text-[15px] text-blue-700" />
                       Trạng thái thu âm: <strong className="text-slate-900">{micLevel > 4 ? 'Đang nhận giọng nói' : 'Đang chờ âm thanh…'}</strong>
                     </span>
                     <span className="font-bold text-slate-800">Mức âm lượng: {Math.min(100, micLevel)}%</span>
@@ -482,7 +494,7 @@ export const PracticeSetupPage: React.FC = () => {
 
                   <div
                     aria-label={`Mức âm thanh ${micLevel}%`}
-                    className="mt-3 flex h-9 items-center gap-1 overflow-hidden rounded-lg bg-white px-2.5 border border-slate-200 shadow-2xs"
+                    className="mt-2 flex h-7 items-center gap-1 overflow-hidden rounded-lg border border-slate-200 bg-white px-2 shadow-2xs"
                   >
                     {Array.from({ length: 36 }, (_, index) => (
                       <span
@@ -495,33 +507,27 @@ export const PracticeSetupPage: React.FC = () => {
                       />
                     ))}
                   </div>
-                  <p className="mt-2 text-[11px] text-slate-500">Micro đang thu âm tốt. Hãy nói thử vài câu để kiểm tra độ nhạy.</p>
                 </div>
               )}
 
               {micError && <p role="alert" className="mt-2 text-xs text-rose-600">{micError}</p>}
 
               {/* Language Selection Box */}
-              <div className="mt-4 rounded-xl bg-slate-50 border border-slate-200 p-3.5 sm:p-4">
-                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-                  <div>
-                    <span className="flex items-center gap-1.5 text-xs font-bold text-slate-800">
-                      <Icon name="translate" className="text-blue-700 text-base" /> Ngôn ngữ thuyết trình
-                    </span>
-                    <p className="mt-0.5 text-[11px] text-slate-500">
-                      AI sẽ nhận diện giọng nói và hỗ trợ phân tích theo ngôn ngữ đã chọn
-                    </p>
-                  </div>
+              <div className="mt-3 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5">
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <span className="flex items-center gap-1.5 text-[11px] font-bold text-slate-800">
+                    <Icon name="translate" className="text-[15px] text-blue-700" /> Ngôn ngữ thuyết trình
+                  </span>
                   <div
                     role="group"
                     aria-label="Chọn ngôn ngữ thuyết trình"
-                    className="flex items-center gap-1.5 rounded-lg bg-white p-1 border border-slate-200 shadow-2xs self-start sm:self-auto"
+                    className="flex items-center gap-1 rounded-lg border border-slate-200 bg-white p-1 shadow-2xs"
                   >
                     <button
                       type="button"
                       onClick={() => setLanguage('vi')}
                       aria-pressed={language === 'vi'}
-                      className={`flex items-center gap-1.5 rounded-md px-3 py-1.5 text-xs font-bold transition cursor-pointer ${
+                      className={`flex items-center gap-1 rounded-md px-2.5 py-1 text-[11px] font-bold transition cursor-pointer ${
                         language === 'vi'
                           ? 'bg-blue-700 text-white shadow-xs'
                           : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
@@ -534,7 +540,7 @@ export const PracticeSetupPage: React.FC = () => {
                       type="button"
                       onClick={() => setLanguage('en')}
                       aria-pressed={language === 'en'}
-                      className={`flex items-center gap-1.5 rounded-md px-3 py-1.5 text-xs font-bold transition cursor-pointer ${
+                      className={`flex items-center gap-1 rounded-md px-2.5 py-1 text-[11px] font-bold transition cursor-pointer ${
                         language === 'en'
                           ? 'bg-blue-700 text-white shadow-xs'
                           : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
@@ -581,6 +587,53 @@ export const PracticeSetupPage: React.FC = () => {
             </section>
           </div>
         </div>
+
+        <section className="mt-8" aria-labelledby="presentation-history-title">
+          <div className="flex flex-wrap items-end justify-between gap-2 border-b border-slate-200 pb-3">
+            <div>
+              <h2 id="presentation-history-title" className="text-lg font-extrabold text-[#19345d]">Các phiên thuyết trình trước</h2>
+              <p className="mt-1 text-xs text-slate-600">Mở báo cáo để xem lại chỉ số và bài luyện được gợi ý.</p>
+            </div>
+            {presentationHistory.length > 0 && <span className="text-xs font-semibold tabular-nums text-slate-500">{presentationHistory.length} phiên gần nhất</span>}
+          </div>
+
+          {presentationHistory.length === 0 ? (
+            <div className="flex items-start gap-3 py-6 text-slate-600">
+              <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-blue-50 text-blue-700"><Icon name="history" className="text-xl" /></span>
+              <div><p className="text-sm font-semibold text-slate-800">Chưa có phiên luyện nào</p><p className="mt-1 text-xs">Sau khi hoàn thành buổi thuyết trình, báo cáo sẽ xuất hiện tại đây.</p></div>
+            </div>
+          ) : (
+            <ul className="divide-y divide-slate-100" aria-label="Lịch sử thuyết trình">
+              {presentationHistory.map((entry) => (
+                <li key={entry.id}>
+                  <button
+                    type="button"
+                    onClick={() => openHistoryEntry(entry)}
+                    className="group flex w-full flex-wrap items-center justify-between gap-x-5 gap-y-3 py-4 text-left transition hover:bg-blue-50/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-blue-600"
+                  >
+                    <span className="flex min-w-0 flex-1 items-center gap-3">
+                      <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-slate-100 text-slate-700 group-hover:bg-blue-50 group-hover:text-blue-800"><Icon name="picture_as_pdf" className="text-lg" /></span>
+                      <span className="min-w-0">
+                        <span className="block truncate text-sm font-bold text-slate-800">{entry.review.fileName || 'Bài thuyết trình'}</span>
+                        <span className="mt-1 block text-xs text-slate-600">
+                          {new Intl.DateTimeFormat('vi-VN', { dateStyle: 'medium', timeStyle: 'short' }).format(new Date(entry.createdAt))}
+                          <span aria-hidden="true"> · </span> {entry.review.duration}
+                        </span>
+                      </span>
+                    </span>
+                    <span className="flex flex-wrap items-center gap-x-4 gap-y-1 pl-[52px] text-xs text-slate-700 sm:pl-0">
+                      <span><strong className="tabular-nums">{entry.review.wordsPerMinute}</strong> từ/phút</span>
+                      <span><strong className="tabular-nums">{entry.review.fillers}</strong> từ đệm</span>
+                      <span><strong className="tabular-nums">{entry.review.eyeContact}%</strong> giao tiếp mắt</span>
+                      <span className="inline-flex items-center gap-1 font-bold text-blue-700">Xem báo cáo <Icon name="arrow_forward" /></span>
+                    </span>
+                  </button>
+                </li>
+              ))}
+            </ul>
+          )}
+          <p className="mt-2 text-[11px] text-slate-500">Lịch sử được lưu trong trình duyệt trên thiết bị này.</p>
+        </section>
       </div>
     </StudentPageLayout>
   );

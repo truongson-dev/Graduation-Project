@@ -1,5 +1,6 @@
 import React from 'react';
 import { AuthMode } from '../../types/auth';
+import { AppIcon } from '../Common/AppIcon';
 
 interface AuthTabsProps {
   currentMode: AuthMode;
@@ -26,7 +27,7 @@ export const AuthTabs: React.FC<AuthTabsProps> = ({ currentMode, onChangeMode })
             : 'text-slate-600 hover:text-[#002045] font-medium'
         }`}
       >
-        <span className="material-symbols-outlined text-[18px]">login</span>
+        <AppIcon name="login" className="text-[18px]" />
         <span>Đăng nhập</span>
       </button>
 
@@ -43,7 +44,7 @@ export const AuthTabs: React.FC<AuthTabsProps> = ({ currentMode, onChangeMode })
             : 'text-slate-600 hover:text-[#002045] font-medium'
         }`}
       >
-        <span className="material-symbols-outlined text-[18px]">person_add</span>
+        <AppIcon name="person_add" className="text-[18px]" />
         <span>Đăng ký mới</span>
       </button>
     </div>

@@ -1,4 +1,5 @@
 import React from 'react';
+import { AppIcon } from '../Common/AppIcon';
 
 interface FeatureItem {
   id: string;
@@ -75,9 +76,7 @@ export const BrandFeaturePanel: React.FC = () => {
               <div
                 className={`w-9 h-9 rounded-xl ${feature.iconBg} border ${feature.iconBorder} flex items-center justify-center shrink-0 mt-0.5 ${feature.iconColor}`}
               >
-                <span className="material-symbols-outlined text-[20px]">
-                  {feature.icon}
-                </span>
+                <AppIcon name={feature.icon} className="text-[20px]" />
               </div>
               <div>
                 <h4 className="text-sm font-semibold text-white leading-tight">

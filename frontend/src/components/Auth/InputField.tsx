@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { AppIcon } from '../Common/AppIcon';
 
 interface InputFieldProps {
   id: string;
@@ -46,12 +47,10 @@ export const InputField: React.FC<InputFieldProps> = ({
       </div>
 
       <div className="relative">
-        <span
-          className="auth-field-icon material-symbols-outlined absolute left-3.5 top-1/2 -translate-y-1/2 text-[18px] pointer-events-none"
-          aria-hidden="true"
-        >
-          {icon}
-        </span>
+        <AppIcon
+          name={icon}
+          className="auth-field-icon pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-[18px]"
+        />
 
         <input
           id={id}
@@ -78,16 +77,14 @@ export const InputField: React.FC<InputFieldProps> = ({
             onClick={() => setShowPassword(!showPassword)}
             className="auth-password-toggle absolute right-2 top-1/2 -translate-y-1/2 p-1 cursor-pointer transition-colors"
           >
-            <span className="material-symbols-outlined text-[18px] font-normal">
-              {showPassword ? 'visibility' : 'visibility_off'}
-            </span>
+            <AppIcon name={showPassword ? 'visibility' : 'visibility_off'} className="text-[18px] font-normal" />
           </button>
         )}
       </div>
 
       {error && (
         <p className="text-xs text-red-500 mt-1 flex items-center gap-1">
-          <span className="material-symbols-outlined text-[14px]">error</span>
+          <AppIcon name="error" className="text-[14px]" />
           <span>{error}</span>
         </p>
       )}

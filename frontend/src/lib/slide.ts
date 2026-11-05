@@ -1,9 +1,4 @@
-import * as pdfjsLib from 'pdfjs-dist';
 import pdfWorkerUrl from 'pdfjs-dist/build/pdf.worker.min.mjs?url';
-
-if (typeof window !== 'undefined' && 'GlobalWorkerOptions' in pdfjsLib) {
-  pdfjsLib.GlobalWorkerOptions.workerSrc = pdfWorkerUrl;
-}
 
 /**
  * Extract plain text content from each slide of a PDF document.
@@ -16,6 +11,8 @@ export async function extractSlideText(file: File | null | undefined): Promise<s
   }
 
   try {
+    const pdfjsLib = await import('pdfjs-dist');
+    pdfjsLib.GlobalWorkerOptions.workerSrc = pdfWorkerUrl;
     const arrayBuffer = await file.arrayBuffer();
     const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
     const pagesText: string[] = [];

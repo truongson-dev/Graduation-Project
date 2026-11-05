@@ -1,14 +1,12 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, type CSSProperties } from 'react';
 import { Navigate, useLocation, useNavigate } from 'react-router';
 import type { FaceLandmarker, PoseLandmarker } from '@mediapipe/tasks-vision';
 import type { Presentation } from '@web-ppt/core';
 import type { PDFDocumentLoadingTask, PDFDocumentProxy, RenderTask } from 'pdfjs-dist';
 import pdfWorkerUrl from 'pdfjs-dist/build/pdf.worker.min.mjs?url';
 import { extractSlideText } from '../lib/slide';
-import { MeetingTopBar } from '../components/Presentation/MeetingTopBar';
-import { MeetingBottomDock } from '../components/Presentation/MeetingBottomDock';
 import { SpeakerTile } from '../components/Presentation/SpeakerTile';
-import { AiCoachDrawer } from '../components/Presentation/AiCoachDrawer';
+import { AppIcon as Icon } from '../components/Common/AppIcon';
 
 type SessionStatus = 'ready' | 'starting' | 'live' | 'paused' | 'ended';
 type LivePageState = {
@@ -42,10 +40,6 @@ type SpeechWindow = Window & {
 const VI_FILLER_WORDS = ['ừm', 'ừ', 'ờ', 'à', 'kiểu như', 'nói chung là', 'thì là', 'uh', 'um'];
 const EN_FILLER_WORDS = ['um', 'uh', 'like', 'you know', 'basically', 'actually', 'sort of', 'kind of'];
 
-function Icon({ name, className = '' }: { name: string; className?: string }) {
-  return <span aria-hidden="true" className={`material-symbols-outlined ${className}`}>{name}</span>;
-}
-
 function countFillers(transcript: string, language: 'vi' | 'en' = 'vi') {
   const normalized = transcript.toLocaleLowerCase(language === 'en' ? 'en-US' : 'vi-VN');
   const fillerList = language === 'en' ? EN_FILLER_WORDS : VI_FILLER_WORDS;
@@ -60,6 +54,108 @@ function clockLabel(totalSeconds: number) {
   const minutes = Math.floor(totalSeconds / 60).toString().padStart(2, '0');
   const seconds = (totalSeconds % 60).toString().padStart(2, '0');
   return `${minutes}:${seconds}`;
+}
+
+function currentTimeLabel() {
+  return new Intl.DateTimeFormat('vi-VN', {
+    hour: '2-digit',
+    minute: '2-digit',
+  }).format(new Date());
+}
+
+function notesForSlide(content: string, slideNumber: number) {
+  const normalized = content.trim();
+  if (!normalized) return '';
+
+  const slideMarker = /\[(?:Slide|Trang)\s+\d+\]:/i;
+  if (!slideMarker.test(normalized)) return normalized;
+
+  const sections = normalized.split(/\n{2,}(?=\[(?:Slide|Trang)\s+\d+\]:)/i);
+  const currentMarker = new RegExp(`^\\[(?:Slide|Trang)\\s+${slideNumber}\\]:\\s*`, 'i');
+  const currentSection = sections.find((section) => currentMarker.test(section.trim()));
+  return currentSection?.trim().replace(currentMarker, '').trim() ?? '';
+}
+
+function PdfThumbnail({
+  document,
+  pageNumber,
+  isActive,
+  onSelect,
+}: {
+  document: PDFDocumentProxy;
+  pageNumber: number;
+  isActive: boolean;
+  onSelect: () => void;
+}) {
+  const canvasRef = useRef<HTMLCanvasElement>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    let renderTask: RenderTask | null = null;
+
+    void document.getPage(pageNumber).then((page) => {
+      if (cancelled || !canvasRef.current) return;
+      const viewport = page.getViewport({ scale: 0.24 });
+      const canvas = canvasRef.current;
+      const context = canvas.getContext('2d');
+      if (!context) return;
+
+      canvas.width = Math.ceil(viewport.width);
+      canvas.height = Math.ceil(viewport.height);
+      renderTask = page.render({ canvas, canvasContext: context, viewport });
+      return renderTask.promise;
+    }).catch(() => undefined);
+
+    return () => {
+      cancelled = true;
+      renderTask?.cancel();
+    };
+  }, [document, pageNumber]);
+
+  return (
+    <button
+      type="button"
+      onClick={onSelect}
+      aria-label={`Chuyển đến trang ${pageNumber}`}
+      aria-current={isActive ? 'page' : undefined}
+      className={`group relative aspect-video w-52 shrink-0 overflow-hidden rounded-xl border-2 bg-white transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 ${
+        isActive
+          ? 'border-blue-600 shadow-[0_8px_24px_rgba(37,99,235,0.18)]'
+          : 'border-slate-200 opacity-80 hover:border-blue-300 hover:opacity-100'
+      }`}
+    >
+      <canvas ref={canvasRef} aria-hidden="true" className="h-full w-full object-contain" />
+      <span className="absolute bottom-1.5 left-1.5 rounded-md bg-black/70 px-1.5 py-0.5 text-[10px] font-bold text-white">
+        {pageNumber}
+      </span>
+    </button>
+  );
+}
+
+function LiveMetric({ icon, label, value, tone = 'violet' }: {
+  icon: string;
+  label: string;
+  value: string;
+  tone?: 'violet' | 'emerald' | 'amber' | 'sky';
+}) {
+  const toneClasses = {
+    violet: 'bg-blue-100 text-blue-700',
+    emerald: 'bg-emerald-100 text-emerald-700',
+    amber: 'bg-amber-100 text-amber-700',
+    sky: 'bg-sky-100 text-sky-700',
+  };
+
+  return (
+    <div className="rounded-xl border border-slate-200 bg-slate-50 p-3">
+      <div className="flex items-center gap-2 text-xs text-slate-500">
+        <span className={`flex h-7 w-7 items-center justify-center rounded-lg ${toneClasses[tone]}`}>
+          <Icon name={icon} className="text-base" />
+        </span>
+        {label}
+      </div>
+      <p className="mt-2 text-lg font-bold tabular-nums text-slate-900">{value}</p>
+    </div>
+  );
 }
 
 function estimateConfidence(eyeContact: number, posture: number, voiceLevel: number, wordsPerMinute: number, fillers: number) {
@@ -87,6 +183,7 @@ export const PracticeLivePage: React.FC = () => {
   const poseCanvasRef = useRef<HTMLCanvasElement>(null);
   const pdfCanvasRef = useRef<HTMLCanvasElement>(null);
   const pdfFrameRef = useRef<HTMLDivElement>(null);
+  const thumbnailStripRef = useRef<HTMLDivElement>(null);
   const streamRef = useRef<MediaStream | null>(null);
   const recordingRef = useRef<MediaRecorder | null>(null);
   const chunksRef = useRef<Blob[]>([]);
@@ -116,14 +213,16 @@ export const PracticeLivePage: React.FC = () => {
   const isMicMutedRef = useRef(false);
 
   const [status, setStatus] = useState<SessionStatus>('ready');
-  const [speechError, setSpeechError] = useState('');
-  const [startCountdown, setStartCountdown] = useState<number | null>(() => practice?.autoStart ? 5 : null);
+  const [, setSpeechError] = useState('');
+  const [startCountdown, setStartCountdown] = useState<number | null>(null);
   const [cameraError, setCameraError] = useState('');
   const [slideNumber, setSlideNumber] = useState(1);
   const [presentation, setPresentation] = useState<Presentation | null>(null);
   const [pdfDocument, setPdfDocument] = useState<PDFDocumentProxy | null>(null);
   const [powerPointSvg, setPowerPointSvg] = useState('');
   const [slideCount, setSlideCount] = useState(0);
+  const [canScrollThumbnailsLeft, setCanScrollThumbnailsLeft] = useState(false);
+  const [canScrollThumbnailsRight, setCanScrollThumbnailsRight] = useState(false);
   const [slideLoadError, setSlideLoadError] = useState('');
   const [seconds, setSeconds] = useState(0);
   const [voiceLevel, setVoiceLevel] = useState(0);
@@ -131,23 +230,59 @@ export const PracticeLivePage: React.FC = () => {
   const [eyeContact, setEyeContact] = useState(0);
   const [posture, setPosture] = useState(0);
   const [cameraGuidance, setCameraGuidance] = useState('Đang tìm khuôn mặt…');
-  const [gestureCount, setGestureCount] = useState(0);
-  const [gestureFeedback, setGestureFeedback] = useState('Đang phân tích cử chỉ…');
+  const [, setGestureCount] = useState(0);
+  const [, setGestureFeedback] = useState('Đang phân tích cử chỉ…');
   const [faceMissing, setFaceMissing] = useState(false);
   const [transcript, setTranscript] = useState('');
   const [recordingUrl, setRecordingUrl] = useState<string | null>(null);
 
-  // Google Meet UI states
-  const [isAiDrawerOpen, setIsAiDrawerOpen] = useState(false);
-  const [showCaptions, setShowCaptions] = useState(true);
   const [isMicMuted, setIsMicMuted] = useState(false);
   const [isCameraMuted, setIsCameraMuted] = useState(false);
   const [showSkeleton, setShowSkeleton] = useState(true);
+  const [workspaceTab, setWorkspaceTab] = useState<'notes' | 'live'>('notes');
+  const [currentTime, setCurrentTime] = useState(currentTimeLabel);
+  const [notesPanelWidth, setNotesPanelWidth] = useState(450);
+  const [isResizingNotes, setIsResizingNotes] = useState(false);
+  const [noteFontSize, setNoteFontSize] = useState(16);
+  const [isEditingNote, setIsEditingNote] = useState(false);
+  const [noteDrafts, setNoteDrafts] = useState<Record<number, string>>({});
+
+  useEffect(() => {
+    const timer = window.setInterval(() => setCurrentTime(currentTimeLabel()), 30_000);
+    return () => window.clearInterval(timer);
+  }, []);
+
+  useEffect(() => {
+    if (!isResizingNotes) return;
+
+    const previousCursor = document.body.style.cursor;
+    const previousUserSelect = document.body.style.userSelect;
+    document.body.style.cursor = 'col-resize';
+    document.body.style.userSelect = 'none';
+
+    const handlePointerMove = (event: PointerEvent) => {
+      const maximumWidth = Math.max(360, Math.min(720, window.innerWidth - 560));
+      setNotesPanelWidth(Math.max(320, Math.min(maximumWidth, window.innerWidth - event.clientX)));
+    };
+    const stopResizing = () => setIsResizingNotes(false);
+
+    window.addEventListener('pointermove', handlePointerMove);
+    window.addEventListener('pointerup', stopResizing, { once: true });
+
+    return () => {
+      document.body.style.cursor = previousCursor;
+      document.body.style.userSelect = previousUserSelect;
+      window.removeEventListener('pointermove', handlePointerMove);
+      window.removeEventListener('pointerup', stopResizing);
+    };
+  }, [isResizingNotes]);
 
   const fillers = countFillers(transcript, practice?.language);
   const confidence = eyeContact > 0 && posture > 0 ? estimateConfidence(eyeContact, posture, voiceLevel, wordsPerMinute, fillers) : null;
   const fileName = file?.name ?? 'hung_dung_do_an_tot_nghiep.pdf';
   const isPdf = fileName.toLowerCase().endsWith('.pdf');
+  const extractedSlideNotes = notesForSlide(slideContent, slideNumber);
+  const activeSlideNotes = noteDrafts[slideNumber] ?? extractedSlideNotes;
 
   const stopRecognition = () => {
     restartOnEndRef.current = false;
@@ -441,9 +576,6 @@ export const PracticeLivePage: React.FC = () => {
         event.preventDefault();
         toggleCamera();
       }
-      if (event.key.toLowerCase() === 'c' && !event.ctrlKey && !event.metaKey) {
-        setShowCaptions((prev) => !prev);
-      }
     };
     window.addEventListener('keydown', onKeyDown);
     return () => window.removeEventListener('keydown', onKeyDown);
@@ -465,7 +597,7 @@ export const PracticeLivePage: React.FC = () => {
     eyeSamplesRef.current = [];
     setGestureCount(0);
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({
+      const stream = streamRef.current ?? await navigator.mediaDevices.getUserMedia({
         video: { facingMode: 'user', width: { ideal: 1280 } },
         audio: { echoCancellation: true, noiseSuppression: true },
       });
@@ -692,6 +824,37 @@ export const PracticeLivePage: React.FC = () => {
   };
 
   useEffect(() => {
+    if (!practice?.autoStart) return;
+    let cancelled = false;
+
+    void navigator.mediaDevices.getUserMedia({
+      video: { facingMode: 'user', width: { ideal: 1280 } },
+      audio: { echoCancellation: true, noiseSuppression: true },
+    }).then((stream) => {
+      if (cancelled) {
+        stream.getTracks().forEach((track) => track.stop());
+        return;
+      }
+
+      streamRef.current = stream;
+      if (videoRef.current) {
+        videoRef.current.srcObject = stream;
+        void videoRef.current.play();
+      }
+      setStartCountdown(5);
+    }).catch((error: unknown) => {
+      if (cancelled) return;
+      setCameraError(error instanceof Error
+        ? `Không thể mở camera hoặc microphone: ${error.message}`
+        : 'Không thể mở camera hoặc microphone. Hãy kiểm tra quyền truy cập.');
+    });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [practice?.autoStart]);
+
+  useEffect(() => {
     if (startCountdown === null) return;
     if (startCountdown === 0) {
       setStartCountdown(null);
@@ -724,6 +887,44 @@ export const PracticeLivePage: React.FC = () => {
       }
       if (trackingFrameRef.current) frameRef.current = requestAnimationFrame(trackingFrameRef.current);
     }
+  };
+
+  const resetSessionTimer = () => {
+    elapsedBeforePauseRef.current = 0;
+    setSeconds(0);
+    if (status === 'live') {
+      startedAtRef.current = performance.now();
+    }
+  };
+
+  const scrollThumbnailStrip = (direction: -1 | 1) => {
+    thumbnailStripRef.current?.scrollBy({
+      left: direction * Math.max(320, thumbnailStripRef.current.clientWidth * 0.72),
+      behavior: 'smooth',
+    });
+  };
+
+  useEffect(() => {
+    const strip = thumbnailStripRef.current;
+    if (!strip) return;
+
+    const updateScrollButtons = () => {
+      setCanScrollThumbnailsLeft(strip.scrollLeft > 2);
+      setCanScrollThumbnailsRight(strip.scrollLeft + strip.clientWidth < strip.scrollWidth - 2);
+    };
+
+    updateScrollButtons();
+    strip.addEventListener('scroll', updateScrollButtons, { passive: true });
+    const observer = new ResizeObserver(updateScrollButtons);
+    observer.observe(strip);
+    return () => {
+      strip.removeEventListener('scroll', updateScrollButtons);
+      observer.disconnect();
+    };
+  }, [slideCount]);
+
+  const updateActiveSlideNote = (value: string) => {
+    setNoteDrafts((current) => ({ ...current, [slideNumber]: value }));
   };
 
   const finishSession = () => {
@@ -760,174 +961,454 @@ export const PracticeLivePage: React.FC = () => {
   const isActive = status === 'live' || status === 'paused';
 
   return (
-    <div className="relative flex h-screen w-screen flex-col overflow-hidden bg-[#202124] text-[#e8eaed] select-none font-sans">
-      {/* Top Header: Authentic Google Meet Presentation Bar */}
-      <MeetingTopBar
-        fileName={fileName}
-        isPdf={isPdf}
-        status={status}
-        seconds={seconds}
-        onFinishSession={finishSession}
-      />
-
-      {/* Main Workspace Stage */}
-      <div className="relative flex flex-1 min-h-0 w-full overflow-hidden">
-        {/* Presentation Stage Canvas */}
-        <main className="relative flex flex-1 items-center justify-center p-3 sm:p-5 overflow-hidden">
-          <div
-            ref={isPdf ? pdfFrameRef : undefined}
-            className="relative flex h-full w-full items-center justify-center overflow-hidden rounded-2xl bg-[#202124]"
-          >
-            {isPdf && pdfDocument ? (
-              <canvas
-                ref={pdfCanvasRef}
-                aria-label={`Trang ${slideNumber} của ${fileName}`}
-                className="max-h-full max-w-full rounded-xl object-contain shadow-2xl bg-white"
-              />
-            ) : !isPdf && powerPointSvg ? (
-              <iframe
-                title={`Slide ${slideNumber} của ${fileName}`}
-                sandbox=""
-                srcDoc={`<!doctype html><meta http-equiv="Content-Security-Policy" content="default-src 'none'; img-src data: blob:; style-src 'unsafe-inline' data: blob:; font-src data: blob:;"><body style="margin:0;display:flex;align-items:center;justify-content:center;background:#202124;height:100vh;">${powerPointSvg}</body>`}
-                className="h-full w-full border-0 rounded-xl bg-white"
-              />
-            ) : (
-              <div className="flex flex-col items-center gap-3 px-6 text-center text-neutral-400">
-                <Icon name={slideLoadError ? 'error' : 'progress_activity'} className={`text-4xl ${!slideLoadError ? 'animate-spin text-[#8ab4f8]' : 'text-[#ea4335]'}`} />
-                <p className="text-sm font-semibold text-neutral-300">
-                  {slideLoadError || `Đang tải trang trình chiếu ${isPdf ? 'PDF' : 'PowerPoint'}…`}
-                </p>
-              </div>
-            )}
-
-            {/* Google Meet Slide Switcher Pill: [ ◀ 2 / 69 ▶ ] */}
-            <div className="pointer-events-none absolute bottom-4 left-1/2 -translate-x-1/2 z-20">
-              <div className="pointer-events-auto flex items-center gap-1.5 rounded-full border border-neutral-700/80 bg-[#202124]/90 px-3 py-1 shadow-2xl backdrop-blur-md">
-                <button
-                  type="button"
-                  disabled={slideNumber <= 1}
-                  onClick={() => setSlideNumber((current) => Math.max(1, current - 1))}
-                  title="Trang trước (←)"
-                  className="flex h-7 w-7 items-center justify-center rounded-full text-neutral-300 hover:bg-[#3c4043] hover:text-white disabled:opacity-30"
-                >
-                  <Icon name="chevron_left" className="text-base" />
-                </button>
-                <span className="font-semibold text-xs text-white tracking-wider px-1.5">
-                  {slideNumber} / {slideCount || 1}
-                </span>
-                <button
-                  type="button"
-                  disabled={Boolean(slideCount && slideNumber >= slideCount)}
-                  onClick={() => setSlideNumber((current) => (slideCount ? Math.min(slideCount, current + 1) : current + 1))}
-                  title="Trang sau (→)"
-                  className="flex h-7 w-7 items-center justify-center rounded-full text-neutral-300 hover:bg-[#3c4043] hover:text-white disabled:opacity-30"
-                >
-                  <Icon name="chevron_right" className="text-base" />
-                </button>
-              </div>
+    <div className="relative flex h-screen w-screen flex-col overflow-hidden bg-[#eef4fb] font-sans text-slate-800 select-none">
+      <div
+        className="flex min-h-0 flex-1 flex-col overflow-y-auto lg:flex-row lg:overflow-hidden"
+        style={{ '--notes-panel-width': `${notesPanelWidth}px` } as CSSProperties}
+      >
+        <section className="flex min-h-[620px] min-w-0 flex-col lg:min-h-0 lg:flex-1" aria-label="Khu vực trình chiếu">
+          <div className="flex h-14 shrink-0 items-center justify-between gap-4 border-b border-slate-200 bg-white px-3 shadow-sm sm:px-4">
+            <div className="flex min-w-0 items-center gap-3">
+              <time className="text-xl font-semibold tabular-nums tracking-tight text-slate-900 sm:text-2xl">
+                {currentTime}
+              </time>
+              <span aria-hidden="true" className="h-7 w-px bg-slate-200" />
+              <span className="text-xl font-semibold tabular-nums tracking-tight text-slate-800 sm:text-2xl">
+                {clockLabel(seconds)}
+              </span>
+              <button
+                type="button"
+                onClick={resetSessionTimer}
+                disabled={!isActive}
+                title="Đặt lại thời gian về 00:00"
+                aria-label="Đặt lại thời gian về 00:00"
+                className="flex h-9 w-9 items-center justify-center rounded-xl border border-slate-200 bg-slate-50 text-blue-950 transition hover:border-blue-200 hover:bg-blue-50 hover:text-blue-700 disabled:cursor-not-allowed disabled:opacity-35"
+              >
+                <Icon name="history" className="text-xl" />
+              </button>
+              <button
+                type="button"
+                onClick={pauseSession}
+                disabled={!isActive}
+                title={status === 'paused' ? 'Tiếp tục' : 'Tạm dừng'}
+                aria-label={status === 'paused' ? 'Tiếp tục thuyết trình' : 'Tạm dừng thuyết trình'}
+                className={`flex h-9 w-9 items-center justify-center rounded-xl border transition disabled:cursor-not-allowed disabled:opacity-35 ${
+                  status === 'paused'
+                    ? 'border-amber-300 bg-amber-50 text-amber-700'
+                    : 'border-slate-200 bg-slate-50 text-blue-950 hover:border-blue-200 hover:bg-blue-50 hover:text-blue-700'
+                }`}
+              >
+                <Icon name={status === 'paused' ? 'play_arrow' : 'pause'} className="text-xl" />
+              </button>
             </div>
 
-            {/* Google Meet Live Captions Overlay Banner (when enabled) */}
-            {showCaptions && transcript && (
-              <div className="pointer-events-none absolute bottom-16 inset-x-4 sm:inset-x-12 z-20 flex justify-center">
-                <div className="rounded-xl bg-black/85 px-4 py-2 text-center text-sm font-medium text-white shadow-xl backdrop-blur-md max-w-2xl">
-                  <span className="font-bold text-[#8ab4f8]">Bạn: </span>
-                  <span>{transcript.split(' ').slice(-14).join(' ')}</span>
-                </div>
-              </div>
-            )}
-            {showCaptions && !transcript && speechError && status === 'live' && (
-              <div className="pointer-events-none absolute bottom-16 inset-x-4 sm:inset-x-12 z-20 flex justify-center">
-                <div className="rounded-xl bg-amber-950/80 border border-amber-500/40 px-4 py-2 text-center text-xs font-medium text-amber-200 shadow-xl backdrop-blur-md max-w-2xl flex items-center gap-2">
-                  <Icon name="info" className="text-sm" />
-                  <span>{speechError}</span>
-                </div>
-              </div>
-            )}
-
-            {/* Floating Speaker Webcam Tile at Bottom-Right (Google Meet Style) */}
-            <div className="absolute right-4 bottom-4 z-20 w-64 sm:w-80 shadow-2xl">
-              <SpeakerTile
-                videoRef={videoRef}
-                poseCanvasRef={poseCanvasRef}
-                isActive={isActive}
-                voiceLevel={voiceLevel}
-                eyeContact={eyeContact}
-                posture={posture}
-                cameraGuidance={cameraGuidance}
-                cameraError={cameraError}
-                faceMissing={faceMissing}
-                status={status}
-                isMicMuted={isMicMuted}
-                isCameraMuted={isCameraMuted}
-                showSkeleton={showSkeleton}
-                onToggleSkeleton={() => setShowSkeleton((prev) => !prev)}
-              />
+            <div className="flex shrink-0 items-center gap-2">
+              <button
+                type="button"
+                onClick={toggleMic}
+                disabled={!isActive}
+                title={isMicMuted ? 'Bật micro' : 'Tắt micro'}
+                aria-label={isMicMuted ? 'Bật micro' : 'Tắt micro'}
+                className={`flex h-9 w-9 items-center justify-center rounded-xl border transition disabled:opacity-35 ${
+                  isMicMuted
+                    ? 'border-rose-300 bg-rose-50 text-rose-700'
+                    : 'border-slate-200 bg-slate-50 text-blue-950 hover:border-blue-200 hover:bg-blue-50 hover:text-blue-700'
+                }`}
+              >
+                <Icon name={isMicMuted ? 'mic_off' : 'mic'} className="text-xl" />
+              </button>
+              <button
+                type="button"
+                onClick={toggleCamera}
+                disabled={!isActive}
+                title={isCameraMuted ? 'Bật camera' : 'Tắt camera'}
+                aria-label={isCameraMuted ? 'Bật camera' : 'Tắt camera'}
+                className={`flex h-9 w-9 items-center justify-center rounded-xl border transition disabled:opacity-35 ${
+                  isCameraMuted
+                    ? 'border-rose-300 bg-rose-50 text-rose-700'
+                    : 'border-slate-200 bg-slate-50 text-blue-950 hover:border-blue-200 hover:bg-blue-50 hover:text-blue-700'
+                }`}
+              >
+                <Icon name={isCameraMuted ? 'videocam_off' : 'videocam'} className="text-xl" />
+              </button>
+              <button
+                type="button"
+                onClick={finishSession}
+                title="Kết thúc và xem đánh giá"
+                aria-label="Kết thúc thuyết trình"
+                className="inline-flex h-9 items-center justify-center gap-1.5 rounded-lg border border-rose-200 bg-rose-50 px-3 text-sm font-semibold text-rose-700 transition hover:border-rose-300 hover:bg-rose-100"
+              >
+                <Icon name="close" className="text-base" />
+                <span>Kết thúc</span>
+              </button>
             </div>
           </div>
-        </main>
 
-        {/* Collapsible Right Sidebar: In-Call AI Coach & Transcripts */}
-        <AiCoachDrawer
-          isOpen={isAiDrawerOpen}
-          onClose={() => setIsAiDrawerOpen(false)}
-          wordsPerMinute={wordsPerMinute}
-          fillers={fillers}
-          confidence={confidence}
-          voiceLevel={voiceLevel}
-          posture={posture}
-          eyeContact={eyeContact}
-          gestureFeedback={gestureFeedback}
-          gestureCount={gestureCount}
-          transcript={transcript}
-          isActive={isActive}
-          speechError={speechError}
-        />
+          <main className="min-h-0 flex-1 bg-[#eef4fb] p-3 sm:p-4">
+            <div
+              ref={pdfFrameRef}
+              className="group relative flex h-full min-h-[360px] w-full items-center justify-center overflow-hidden border border-slate-300 bg-slate-900 shadow-[0_18px_48px_rgba(15,23,42,0.16)] lg:min-h-0"
+            >
+              {isPdf && pdfDocument ? (
+                <canvas
+                  ref={pdfCanvasRef}
+                  aria-label={`Trang ${slideNumber} của ${fileName}`}
+                  className="max-h-full max-w-full bg-white object-contain"
+                />
+              ) : !isPdf && powerPointSvg ? (
+                <iframe
+                  title={`Slide ${slideNumber} của ${fileName}`}
+                  sandbox=""
+                  srcDoc={`<!doctype html><meta http-equiv="Content-Security-Policy" content="default-src 'none'; img-src data: blob:; style-src 'unsafe-inline' data: blob:; font-src data: blob:;"><body style="margin:0;display:flex;align-items:center;justify-content:center;background:#0b0c10;height:100vh;">${powerPointSvg}</body>`}
+                  className="h-full w-full border-0 bg-white"
+                />
+              ) : (
+                <div className="flex flex-col items-center gap-3 px-6 text-center text-zinc-400">
+                  <Icon name={slideLoadError ? 'error' : 'progress_activity'} className={`text-4xl ${!slideLoadError ? 'animate-spin text-zinc-300' : 'text-rose-300'}`} />
+                  <p className="text-sm font-semibold text-zinc-300">
+                    {slideLoadError || `Đang tải trang trình chiếu ${isPdf ? 'PDF' : 'PowerPoint'}…`}
+                  </p>
+                </div>
+              )}
+
+              <button
+                type="button"
+                onClick={() => setSlideNumber((current) => Math.max(1, current - 1))}
+                disabled={slideNumber <= 1}
+                aria-label="Chuyển slide sang trái"
+                title="Slide trước"
+                className="absolute inset-y-0 left-0 z-10 flex w-[12%] cursor-pointer items-center justify-start pl-3 text-white opacity-0 transition-opacity hover:bg-gradient-to-r hover:from-slate-950/40 hover:to-transparent hover:opacity-100 focus-visible:opacity-100 disabled:pointer-events-none"
+              >
+                <span className="flex h-10 w-10 items-center justify-center rounded-full bg-slate-950/60 shadow-lg">
+                  <Icon name="chevron_left" className="text-2xl" />
+                </span>
+              </button>
+              <button
+                type="button"
+                onClick={() => setSlideNumber((current) => (slideCount ? Math.min(slideCount, current + 1) : current + 1))}
+                disabled={Boolean(slideCount && slideNumber >= slideCount)}
+                aria-label="Chuyển slide sang phải"
+                title="Slide tiếp theo"
+                className="absolute inset-y-0 right-0 z-10 flex w-[12%] cursor-pointer items-center justify-end pr-3 text-white opacity-0 transition-opacity hover:bg-gradient-to-l hover:from-slate-950/40 hover:to-transparent hover:opacity-100 focus-visible:opacity-100 disabled:pointer-events-none"
+              >
+                <span className="flex h-10 w-10 items-center justify-center rounded-full bg-slate-950/60 shadow-lg">
+                  <Icon name="chevron_right" className="text-2xl" />
+                </span>
+              </button>
+
+              <div className="pointer-events-auto absolute inset-x-0 bottom-0 z-20 flex h-12 items-center justify-between border-t border-white/10 bg-slate-950/90 px-3 text-white shadow-[0_-8px_24px_rgba(15,23,42,0.2)] backdrop-blur transition-[opacity,transform] duration-200 lg:pointer-events-none lg:translate-y-2 lg:opacity-0 lg:group-hover:pointer-events-auto lg:group-hover:translate-y-0 lg:group-hover:opacity-100 lg:group-focus-within:pointer-events-auto lg:group-focus-within:translate-y-0 lg:group-focus-within:opacity-100">
+                <div className="flex items-center gap-1">
+                  <button
+                    type="button"
+                    disabled={slideNumber <= 1}
+                    onClick={() => setSlideNumber(1)}
+                    title="Về slide đầu tiên"
+                    aria-label="Về slide đầu tiên"
+                    className="flex h-9 w-9 items-center justify-center rounded-lg text-slate-200 transition hover:bg-white/15 disabled:cursor-not-allowed disabled:opacity-35"
+                  >
+                    <Icon name="first_page" className="text-lg" />
+                  </button>
+                  <button
+                    type="button"
+                    disabled={slideNumber <= 1}
+                    onClick={() => setSlideNumber((current) => Math.max(1, current - 1))}
+                    title="Trang trước (←)"
+                    aria-label="Trang trước"
+                    className="flex h-9 w-9 items-center justify-center rounded-lg text-slate-200 transition hover:bg-white/15 disabled:cursor-not-allowed disabled:opacity-35"
+                  >
+                    <Icon name="chevron_left" className="text-lg" />
+                  </button>
+                  <span className="min-w-14 px-1 text-center text-xs font-bold tabular-nums">
+                    {slideNumber} / {slideCount || 1}
+                  </span>
+                  <button
+                    type="button"
+                    disabled={Boolean(slideCount && slideNumber >= slideCount)}
+                    onClick={() => setSlideNumber((current) => (slideCount ? Math.min(slideCount, current + 1) : current + 1))}
+                    title="Trang sau (→)"
+                    aria-label="Trang sau"
+                    className="flex h-9 w-9 items-center justify-center rounded-lg text-slate-200 transition hover:bg-white/15 disabled:cursor-not-allowed disabled:opacity-35"
+                  >
+                    <Icon name="chevron_right" className="text-lg" />
+                  </button>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => void pdfFrameRef.current?.requestFullscreen?.()}
+                  title="Trình chiếu toàn màn hình"
+                  aria-label="Trình chiếu toàn màn hình"
+                  className="flex h-9 w-9 items-center justify-center rounded-lg text-slate-200 transition hover:bg-white/15"
+                >
+                  <Icon name="fullscreen" className="text-lg" />
+                </button>
+              </div>
+            </div>
+          </main>
+
+          <div className="shrink-0 border-t border-slate-200 bg-white px-3 py-3 sm:px-4">
+            <div className="relative">
+              {canScrollThumbnailsLeft && <button
+                type="button"
+                onClick={() => scrollThumbnailStrip(-1)}
+                title="Cuộn danh sách slide sang trái"
+                aria-label="Cuộn danh sách slide sang trái"
+                className="absolute left-1 top-1/2 z-10 flex h-10 w-10 -translate-y-1/2 items-center justify-center rounded-full border border-blue-200 bg-white/95 text-blue-700 shadow-lg transition hover:border-blue-300 hover:bg-blue-50"
+              >
+                <Icon name="chevron_left" className="text-2xl" />
+              </button>}
+              <div
+                ref={thumbnailStripRef}
+                className={`hide-scrollbar flex gap-3 overflow-x-auto pb-1 ${canScrollThumbnailsLeft ? 'pl-12' : 'pl-0'} ${canScrollThumbnailsRight ? 'pr-12' : 'pr-0'}`}
+                aria-label="Danh sách trang trình chiếu"
+              >
+                {isPdf && pdfDocument
+                  ? Array.from({ length: slideCount }, (_, index) => {
+                      const pageNumber = index + 1;
+                      return (
+                        <PdfThumbnail
+                          key={pageNumber}
+                          document={pdfDocument}
+                          pageNumber={pageNumber}
+                          isActive={slideNumber === pageNumber}
+                          onSelect={() => setSlideNumber(pageNumber)}
+                        />
+                      );
+                    })
+                  : Array.from({ length: Math.max(1, slideCount) }, (_, index) => {
+                      const pageNumber = index + 1;
+                      return (
+                        <button
+                          key={pageNumber}
+                          type="button"
+                          onClick={() => setSlideNumber(pageNumber)}
+                          className={`flex aspect-video w-52 shrink-0 items-center justify-center rounded-xl border-2 text-sm font-bold transition ${
+                            slideNumber === pageNumber
+                              ? 'border-blue-600 bg-blue-50 text-blue-700 shadow-[0_8px_24px_rgba(37,99,235,0.15)]'
+                              : 'border-slate-200 bg-slate-50 text-slate-500 hover:border-blue-300 hover:text-blue-700'
+                          }`}
+                        >
+                          Trang {pageNumber}
+                        </button>
+                      );
+                    })}
+              </div>
+              {canScrollThumbnailsRight && <button
+                type="button"
+                onClick={() => scrollThumbnailStrip(1)}
+                title="Cuộn danh sách slide sang phải"
+                aria-label="Cuộn danh sách slide sang phải"
+                className="absolute right-1 top-1/2 z-10 flex h-10 w-10 -translate-y-1/2 items-center justify-center rounded-full border border-blue-200 bg-white/95 text-blue-700 shadow-lg transition hover:border-blue-300 hover:bg-blue-50"
+              >
+                <Icon name="chevron_right" className="text-2xl" />
+              </button>}
+            </div>
+          </div>
+        </section>
+
+        <div
+          role="separator"
+          aria-label="Thay đổi độ rộng bảng ghi chú"
+          aria-orientation="vertical"
+          aria-valuemin={320}
+          aria-valuemax={720}
+          aria-valuenow={notesPanelWidth}
+          tabIndex={0}
+          onPointerDown={(event) => {
+            event.preventDefault();
+            setIsResizingNotes(true);
+          }}
+          onKeyDown={(event) => {
+            if (event.key !== 'ArrowLeft' && event.key !== 'ArrowRight') return;
+            event.preventDefault();
+            setNotesPanelWidth((current) => Math.max(320, Math.min(720, current + (event.key === 'ArrowLeft' ? 24 : -24))));
+          }}
+          className={`group/resizer relative hidden w-2 shrink-0 cursor-col-resize items-center justify-center border-x border-blue-100 outline-none transition-colors hover:bg-blue-100 focus-visible:bg-blue-100 lg:flex ${
+            isResizingNotes ? 'bg-blue-100' : 'bg-[#eef4fb]'
+          }`}
+        >
+          <span className="h-10 w-1 rounded-full bg-slate-300 transition-colors group-hover/resizer:bg-blue-500" />
+        </div>
+
+        <aside
+          className="flex min-h-[520px] min-w-0 flex-col border-l border-slate-200 bg-white lg:min-h-0 lg:w-[var(--notes-panel-width)] lg:shrink-0"
+          aria-label="Ghi chú và phân tích trực tiếp"
+        >
+          <div role="tablist" aria-label="Bảng hỗ trợ trình bày" className="grid grid-cols-2 border-b border-slate-200 px-4">
+            <button
+              type="button"
+              role="tab"
+              aria-selected={workspaceTab === 'notes'}
+              onClick={() => setWorkspaceTab('notes')}
+              className={`flex items-center justify-center gap-2 border-b-2 px-3 py-4 text-sm font-semibold transition ${
+                workspaceTab === 'notes'
+                  ? 'border-blue-600 text-blue-700'
+                  : 'border-transparent text-slate-500 hover:text-slate-800'
+              }`}
+            >
+              <Icon name="edit_note" className="text-xl" />
+              Ghi chú
+            </button>
+            <button
+              type="button"
+              role="tab"
+              aria-selected={workspaceTab === 'live'}
+              aria-label="Xem bản thân và nhận xét trực tiếp từ AI"
+              title="Xem bản thân và nhận xét trực tiếp từ AI"
+              onClick={() => setWorkspaceTab('live')}
+              className={`flex items-center justify-center gap-2 border-b-2 px-3 py-4 text-sm font-semibold transition ${
+                workspaceTab === 'live'
+                  ? 'border-blue-600 text-blue-700'
+                  : 'border-transparent text-slate-500 hover:text-slate-800'
+              }`}
+            >
+              <Icon name="smart_toy" className="text-xl" />
+              AI nhận xét
+            </button>
+          </div>
+
+          <div className="min-h-0 flex-1 overflow-y-auto p-4 sm:p-5">
+            {workspaceTab === 'notes' ? (
+              <div role="tabpanel" aria-label={`Ghi chú slide ${slideNumber}`} className="flex min-h-full flex-col gap-4 select-text">
+                <div className="flex min-h-64 flex-1">
+                  {isEditingNote ? (
+                    <textarea
+                      autoFocus
+                      value={activeSlideNotes}
+                      onChange={(event) => updateActiveSlideNote(event.target.value)}
+                      placeholder="Nhập nội dung ghi chú cho slide này…"
+                      aria-label={`Chỉnh sửa ghi chú slide ${slideNumber}`}
+                      className="min-h-64 w-full resize-none rounded-xl border border-slate-200 bg-slate-50 p-3 text-slate-800 outline-none transition placeholder:text-slate-400 focus:border-blue-400 focus:ring-2 focus:ring-blue-100"
+                      style={{ fontSize: `${noteFontSize}px`, lineHeight: 1.65 }}
+                    />
+                  ) : activeSlideNotes ? (
+                    <p className="whitespace-pre-wrap text-slate-800" style={{ fontSize: `${noteFontSize}px`, lineHeight: 1.65 }}>
+                      {activeSlideNotes}
+                    </p>
+                  ) : (
+                    <div className="flex min-h-64 flex-1 flex-col items-center justify-center text-center">
+                      <Icon name="notes" className="text-3xl text-slate-300" />
+                      <p className="mt-3 text-sm font-medium text-slate-600">Slide này chưa có nội dung ghi chú</p>
+                      <p className="mt-1 max-w-xs text-xs leading-relaxed text-slate-400">
+                        Nhấn nút chỉnh sửa để thêm nội dung trình bày cho slide này.
+                      </p>
+                    </div>
+                  )}
+                </div>
+
+                <div className="sticky bottom-0 flex items-center justify-between gap-3 border-t border-slate-200 bg-white pt-3">
+                  <div className="flex overflow-hidden rounded-xl border border-slate-200 bg-slate-50">
+                    <button
+                      type="button"
+                      onClick={() => setNoteFontSize((current) => Math.max(14, current - 2))}
+                      disabled={noteFontSize <= 14}
+                      title="Giảm kích thước chữ"
+                      aria-label="Giảm kích thước chữ ghi chú"
+                      className="flex h-10 w-10 items-center justify-center text-blue-950 transition hover:bg-blue-50 hover:text-blue-700 disabled:opacity-35"
+                    >
+                      <Icon name="remove" className="text-lg" />
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setNoteFontSize(16)}
+                      title="Đặt lại kích thước chữ"
+                      aria-label="Đặt lại kích thước chữ ghi chú"
+                      className="flex h-10 min-w-11 items-center justify-center border-x border-slate-200 px-2 text-xs font-semibold text-blue-950 transition hover:bg-blue-50 hover:text-blue-700"
+                    >
+                      aA
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setNoteFontSize((current) => Math.min(24, current + 2))}
+                      disabled={noteFontSize >= 24}
+                      title="Tăng kích thước chữ"
+                      aria-label="Tăng kích thước chữ ghi chú"
+                      className="flex h-10 w-10 items-center justify-center text-blue-950 transition hover:bg-blue-50 hover:text-blue-700 disabled:opacity-35"
+                    >
+                      <Icon name="add" className="text-lg" />
+                    </button>
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={() => setIsEditingNote((current) => !current)}
+                    aria-pressed={isEditingNote}
+                    title={isEditingNote ? 'Lưu ghi chú' : 'Chỉnh sửa ghi chú'}
+                    aria-label={isEditingNote ? 'Lưu ghi chú' : 'Chỉnh sửa ghi chú'}
+                    className={`flex h-10 w-10 items-center justify-center rounded-xl border transition ${
+                      isEditingNote
+                        ? 'border-emerald-300 bg-emerald-50 text-emerald-700'
+                        : 'border-slate-200 bg-slate-50 text-blue-950 hover:border-blue-200 hover:bg-blue-50 hover:text-blue-700'
+                    }`}
+                  >
+                    <Icon name={isEditingNote ? 'check' : 'edit'} className="text-xl" />
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <div role="tabpanel" className="space-y-4">
+                <SpeakerTile
+                  videoRef={videoRef}
+                  poseCanvasRef={poseCanvasRef}
+                  isActive={isActive}
+                  voiceLevel={voiceLevel}
+                  eyeContact={eyeContact}
+                  posture={posture}
+                  cameraGuidance={cameraGuidance}
+                  cameraError={cameraError}
+                  faceMissing={faceMissing}
+                  status={status}
+                  isMicMuted={isMicMuted}
+                  isCameraMuted={isCameraMuted}
+                  showSkeleton={showSkeleton}
+                  onToggleSkeleton={() => setShowSkeleton((current) => !current)}
+                  className="shadow-none"
+                />
+
+                <div className="grid grid-cols-2 gap-3">
+                  <LiveMetric icon="speed" label="Tốc độ nói" value={`${wordsPerMinute || 0} WPM`} tone="violet" />
+                  <LiveMetric icon="warning" label="Từ đệm" value={`${fillers} lần`} tone="amber" />
+                  <LiveMetric icon="visibility" label="Giao tiếp mắt" value={`${eyeContact || 0}%`} tone="sky" />
+                  <LiveMetric icon="accessibility_new" label="Tư thế" value={`${posture || 0}%`} tone="emerald" />
+                </div>
+
+                <div className="rounded-xl border border-slate-200 bg-slate-50 p-3.5">
+                  <div className="flex items-center justify-between gap-3">
+                    <span className="text-xs font-semibold text-slate-600">Mức giọng nói</span>
+                    <span className="text-xs font-bold tabular-nums text-blue-700">{voiceLevel}%</span>
+                  </div>
+                  <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-slate-200">
+                    <div className="h-full rounded-full bg-blue-600 transition-[width] duration-200" style={{ width: `${voiceLevel}%` }} />
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
+        </aside>
       </div>
 
-      {/* Authentic Google Meet Bottom Toolbar */}
-      <MeetingBottomDock
-        status={status}
-        isMicMuted={isMicMuted}
-        isCameraMuted={isCameraMuted}
-        onToggleMic={toggleMic}
-        onToggleCamera={toggleCamera}
-        onTogglePause={pauseSession}
-        onFinishSession={finishSession}
-        slideNumber={slideNumber}
-        slideCount={slideCount}
-        onPrevSlide={() => setSlideNumber((current) => Math.max(1, current - 1))}
-        onNextSlide={() => setSlideNumber((current) => (slideCount ? Math.min(slideCount, current + 1) : current + 1))}
-        isAiDrawerOpen={isAiDrawerOpen}
-        onToggleAiDrawer={() => setIsAiDrawerOpen((prev) => !prev)}
-        showCaptions={showCaptions}
-        onToggleCaptions={() => setShowCaptions((prev) => !prev)}
-        voiceLevel={voiceLevel}
-      />
-
-      {/* Countdown Overlay (Sleek Dark Frosted Glass) */}
+      {/* Countdown Overlay */}
       {startCountdown !== null && status === 'ready' && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4 backdrop-blur-md">
-          <div className="flex h-44 w-44 flex-col items-center justify-center rounded-3xl border border-neutral-700 bg-[#202124] text-white shadow-2xl ring-4 ring-[#8ab4f8]/20">
-            <span className="text-6xl font-black tabular-nums text-[#8ab4f8] animate-pulse">{startCountdown}</span>
-            <span className="mt-2 text-xs font-semibold text-neutral-300 uppercase tracking-widest">Bắt đầu sau</span>
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/45 p-4 backdrop-blur-md">
+          <div className="flex h-44 w-44 flex-col items-center justify-center rounded-3xl border border-blue-200 bg-white text-slate-900 shadow-2xl ring-4 ring-blue-100">
+            <span className="animate-pulse text-6xl font-black tabular-nums text-blue-600">{startCountdown}</span>
+            <span className="mt-2 text-xs font-semibold uppercase tracking-widest text-slate-500">Bắt đầu sau</span>
           </div>
         </div>
       )}
 
-      {/* Session Completed Summary Modal (Google Meet Ending Dialog Style) */}
+      {/* Session Completed Summary Modal */}
       {status === 'ended' && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4 backdrop-blur-md">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/45 p-4 backdrop-blur-md">
           <section
             role="dialog"
             aria-modal="true"
             aria-labelledby="session-summary-title"
-            className="w-full max-w-lg rounded-3xl border border-neutral-700/80 bg-[#202124] p-6 shadow-2xl text-white"
+            className="w-full max-w-lg rounded-3xl border border-slate-200 bg-white p-6 text-slate-800 shadow-2xl"
           >
             <div className="flex items-start justify-between">
               <div>
-                <p className="text-xs font-bold uppercase tracking-[.15em] text-[#8ab4f8]">BẢN TRÌNH BÀY ĐÃ KẾT THÚC</p>
-                <h2 id="session-summary-title" className="mt-1 text-2xl font-black text-white">
+                <p className="text-xs font-bold uppercase tracking-[.15em] text-blue-600">BẢN TRÌNH BÀY ĐÃ KẾT THÚC</p>
+                <h2 id="session-summary-title" className="mt-1 text-2xl font-black text-slate-900">
                   Tóm tắt phiên thuyết trình
                 </h2>
               </div>
@@ -935,7 +1416,7 @@ export const PracticeLivePage: React.FC = () => {
                 type="button"
                 onClick={() => navigate('/home')}
                 aria-label="Đóng"
-                className="rounded-full p-2 text-neutral-400 hover:bg-[#3c4043] hover:text-white transition-colors"
+                className="rounded-full p-2 text-slate-400 transition-colors hover:bg-slate-100 hover:text-slate-700"
               >
                 <Icon name="close" className="text-xl" />
               </button>
@@ -948,22 +1429,22 @@ export const PracticeLivePage: React.FC = () => {
                 { label: 'Từ đệm', value: `${fillers} lần`, icon: 'warning' },
                 { label: 'Tự tin', value: confidence === null ? '—' : `${confidence}/100`, icon: 'verified' },
               ].map((metric) => (
-                <div key={metric.label} className="rounded-2xl border border-neutral-700/60 bg-[#282a2d] p-3">
-                  <div className="flex items-center justify-between text-neutral-400">
+                <div key={metric.label} className="rounded-2xl border border-slate-200 bg-slate-50 p-3">
+                  <div className="flex items-center justify-between text-slate-500">
                     <span className="text-[10px]">{metric.label}</span>
-                    <Icon name={metric.icon} className="text-xs text-[#8ab4f8]" />
+                    <Icon name={metric.icon} className="text-xs text-blue-600" />
                   </div>
-                  <p className="mt-1 text-base font-black text-white">{metric.value}</p>
+                  <p className="mt-1 text-base font-black text-slate-900">{metric.value}</p>
                 </div>
               ))}
             </div>
 
-            <div className="mt-4 rounded-2xl border border-neutral-700/60 bg-[#282a2d] p-3 text-xs leading-relaxed text-neutral-300 max-h-32 overflow-y-auto">
-              <span className="font-semibold text-[#8ab4f8]">Bản chép lời ghi nhận: </span>
+            <div className="mt-4 max-h-32 overflow-y-auto rounded-2xl border border-slate-200 bg-slate-50 p-3 text-xs leading-relaxed text-slate-600">
+              <span className="font-semibold text-blue-700">Bản chép lời ghi nhận: </span>
               {transcript ? `“${transcript}”` : 'Phiên này chưa nhận diện được tiếng nói rõ ràng. Bạn vẫn có thể chuyển AI chấm bài dựa trên slide.'}
             </div>
 
-            <p className="mt-3 text-[10px] text-neutral-500">
+            <p className="mt-3 text-[10px] text-slate-400">
               * Điểm số sơ bộ được ước tính từ nhịp nói, âm lượng, tư thế và hướng nhìn thời gian thực.
             </p>
 
@@ -972,7 +1453,7 @@ export const PracticeLivePage: React.FC = () => {
                 <a
                   href={recordingUrl}
                   download="softskill-presentation.webm"
-                  className="mr-auto inline-flex items-center gap-1.5 rounded-full border border-neutral-600 bg-[#3c4043] px-4 py-2 text-xs font-semibold text-white hover:bg-[#4a4e52] transition-colors"
+                  className="mr-auto inline-flex items-center gap-1.5 rounded-full border border-slate-200 bg-slate-50 px-4 py-2 text-xs font-semibold text-slate-700 transition-colors hover:bg-slate-100"
                 >
                   <Icon name="download" className="text-base" />
                   Tải bản ghi
@@ -981,14 +1462,14 @@ export const PracticeLivePage: React.FC = () => {
               <button
                 type="button"
                 onClick={() => navigate('/home')}
-                className="rounded-full border border-neutral-700 bg-transparent px-4 py-2 text-xs font-semibold text-neutral-300 hover:bg-[#3c4043] hover:text-white transition-colors"
+                className="rounded-full border border-slate-200 bg-white px-4 py-2 text-xs font-semibold text-slate-600 transition-colors hover:bg-slate-100 hover:text-slate-900"
               >
                 Về trang chủ
               </button>
               <button
                 type="button"
                 onClick={openAIGReview}
-                className="rounded-full bg-[#8ab4f8] hover:bg-[#a8c7fa] text-[#202124] px-5 py-2 text-xs font-extrabold shadow-lg active:scale-95 transition-all"
+                className="rounded-full bg-blue-600 px-5 py-2 text-xs font-extrabold text-white shadow-lg transition-all hover:bg-blue-700 active:scale-95"
               >
                 Chuyển AI chấm bài
               </button>

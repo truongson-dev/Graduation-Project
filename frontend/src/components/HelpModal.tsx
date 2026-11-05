@@ -1,5 +1,6 @@
 import { useEffect, useRef } from 'react';
 import { ForgotPasswordForm } from './Auth/ForgotPasswordForm';
+import { AppIcon } from './Common/AppIcon';
 
 interface HelpModalProps {
   isOpen: boolean;
@@ -47,9 +48,7 @@ export const HelpModal: React.FC<HelpModalProps> = ({
       >
         <div className="flex items-center justify-between pb-3 border-b border-slate-100">
           <div className="flex items-center gap-2">
-            <span className="material-symbols-outlined text-[#1a365d] text-[24px]">
-              {type === 'help' ? 'help_outline' : 'lock_reset'}
-            </span>
+            <AppIcon name={type === 'help' ? 'help_outline' : 'lock_reset'} className="text-[24px] text-[#1a365d]" />
             <h3 className="font-bold text-slate-800 text-lg">
               {type === 'help' ? title : 'Khôi phục mật khẩu'}
             </h3>
@@ -60,7 +59,7 @@ export const HelpModal: React.FC<HelpModalProps> = ({
             onClick={onClose}
             className="text-slate-400 hover:text-slate-600 p-1 rounded-lg hover:bg-slate-100 cursor-pointer"
           >
-            <span className="material-symbols-outlined text-[20px]">close</span>
+            <AppIcon name="close" className="text-[20px]" />
           </button>
         </div>
 

@@ -1,5 +1,6 @@
 import React from 'react';
 import { useMe } from '../../lib/auth';
+import { AppIcon as Icon } from '../Common/AppIcon';
 
 type SessionStatus = 'ready' | 'starting' | 'live' | 'paused' | 'ended';
 
@@ -19,10 +20,6 @@ interface SpeakerTileProps {
   showSkeleton?: boolean;
   onToggleSkeleton?: () => void;
   className?: string;
-}
-
-function Icon({ name, className = '' }: { name: string; className?: string }) {
-  return <span aria-hidden="true" className={`material-symbols-outlined ${className}`}>{name}</span>;
 }
 
 export const SpeakerTile: React.FC<SpeakerTileProps> = ({
@@ -45,6 +42,7 @@ export const SpeakerTile: React.FC<SpeakerTileProps> = ({
   const me = useMe();
   const userName = me.data?.name || 'Võ Hoàng Nam (VHN DEV)';
   const isSpeaking = isActive && !isMicMuted && voiceLevel > 12;
+  const hasCameraFeed = !isCameraMuted && (isActive || status === 'starting');
 
   return (
     <div
@@ -56,7 +54,7 @@ export const SpeakerTile: React.FC<SpeakerTileProps> = ({
     >
       {/* Video / Camera Feed */}
       <div className="relative aspect-video w-full overflow-hidden bg-[#202124]">
-        {isActive && !isCameraMuted ? (
+        {hasCameraFeed ? (
           <>
             <video
               ref={videoRef}
@@ -128,26 +126,6 @@ export const SpeakerTile: React.FC<SpeakerTileProps> = ({
             )}
           </div>
         )}
-
-        {/* Bottom Left: Google Meet Participant Name Label */}
-        <div className="absolute bottom-2.5 left-2.5 z-10 flex items-center gap-1.5 rounded-md bg-black/70 px-2 py-1 text-xs font-medium text-white backdrop-blur-md">
-          {/* Mic muted red badge or mic wave */}
-          {isMicMuted ? (
-            <span className="flex h-4 w-4 items-center justify-center rounded-full bg-[#ea4335] text-[10px] text-white">
-              <Icon name="mic_off" className="text-[11px]" />
-            </span>
-          ) : isSpeaking ? (
-            <span className="flex items-end gap-0.5 h-3">
-              <span className="w-0.5 bg-[#8ab4f8] rounded-full animate-bounce [animation-delay:0ms] h-full" />
-              <span className="w-0.5 bg-[#8ab4f8] rounded-full animate-bounce [animation-delay:150ms] h-2/3" />
-              <span className="w-0.5 bg-[#8ab4f8] rounded-full animate-bounce [animation-delay:300ms] h-4/5" />
-            </span>
-          ) : (
-            <Icon name="mic" className="text-xs text-neutral-400" />
-          )}
-
-          <span className="max-w-[160px] truncate">{userName}</span>
-        </div>
 
         {/* Camera Guidance pill on bottom right */}
         {isActive && cameraGuidance && (

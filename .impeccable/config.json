@@ -1,0 +1,17 @@
+{
+  "detector": {
+    "ignoreRules": [],
+    "ignoreFiles": [],
+    "ignoreValues": [
+      {
+        "rule": "ai-color-palette",
+        "value": "*",
+        "files": [
+          "frontend/src/pages/PracticeLivePage.tsx"
+        ],
+        "createdAt": "2026-11-05T03:10:33.852Z",
+        "reason": "user confirmed: attached live-interface reference uses violet as the active control and tab accent"
+      }
+    ]
+  }
+}

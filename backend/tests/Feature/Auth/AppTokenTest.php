@@ -7,6 +7,11 @@ use Laravel\Socialite\Socialite;
 
 beforeEach(function () {
     $this->seed(RoleSeeder::class);
+    config([
+        'services.google.client_id' => 'test-client-id',
+        'services.google.client_secret' => 'test-client-secret',
+        'services.google.redirect' => 'http://localhost/api/v1/auth/social/google/callback',
+    ]);
 });
 
 it('completes the full mobile token lifecycle: register, call me, refresh, call me again, logout', function () {

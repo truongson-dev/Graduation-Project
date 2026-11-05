@@ -10,6 +10,7 @@ import { InputField } from './InputField';
 import { api, endpoints, getApiError } from '../../lib/api';
 import { useLogin, useRegister } from '../../lib/auth';
 import { PASSWORD_REQUIREMENTS, passwordSchema } from '../../lib/password';
+import { AppIcon } from '../Common/AppIcon';
 
 const loginSchema = z.object({
   email: z.email('Email không đúng định dạng'),
@@ -183,7 +184,7 @@ export const AuthForm: React.FC<AuthFormProps> = ({ onForgotPassword }) => {
 
       {generalError && (
         <div className="mb-4 p-3.5 rounded-xl bg-red-50 border border-red-200 text-red-800 text-sm flex items-center gap-2.5">
-          <span className="material-symbols-outlined text-red-600 text-[20px]">error</span>
+          <AppIcon name="error" className="text-[20px] text-red-600" />
           <span>{generalError}</span>
         </div>
       )}
@@ -197,7 +198,7 @@ export const AuthForm: React.FC<AuthFormProps> = ({ onForgotPassword }) => {
 
       {successMessage && (
         <div role="status" className="mb-4 flex items-center gap-2.5 rounded-xl border border-emerald-200 bg-emerald-50 p-3.5 text-sm text-emerald-800">
-          <span className="material-symbols-outlined text-[20px] text-emerald-600">check_circle</span>
+          <AppIcon name="check_circle" className="text-[20px] text-emerald-600" />
           <span>{successMessage}</span>
         </div>
       )}
@@ -293,15 +294,13 @@ export const AuthForm: React.FC<AuthFormProps> = ({ onForgotPassword }) => {
             >
               {isLoading ? (
                 <span className="inline-flex items-center gap-2">
-                  <span className="material-symbols-outlined text-[18px] animate-spin">
-                    progress_activity
-                  </span>
+                  <AppIcon name="progress_activity" className="animate-spin text-[18px]" />
                   <span>Đang xử lý...</span>
                 </span>
               ) : (
                 <>
                   <span>Đăng nhập ngay</span>
-                  <span className="material-symbols-outlined text-[18px]">arrow_forward</span>
+                  <AppIcon name="arrow_forward" className="text-[18px]" />
                 </>
               )}
             </button>
@@ -403,15 +402,13 @@ export const AuthForm: React.FC<AuthFormProps> = ({ onForgotPassword }) => {
             >
               {isLoading ? (
                 <span className="inline-flex items-center gap-2">
-                  <span className="material-symbols-outlined text-[18px] animate-spin">
-                    progress_activity
-                  </span>
+                  <AppIcon name="progress_activity" className="animate-spin text-[18px]" />
                   <span>Đang xử lý...</span>
                 </span>
               ) : (
                 <>
                   <span>Tạo tài khoản</span>
-                  <span className="material-symbols-outlined text-[18px]">person_add</span>
+                  <AppIcon name="person_add" className="text-[18px]" />
                 </>
               )}
             </button>

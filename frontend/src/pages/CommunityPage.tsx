@@ -1,6 +1,7 @@
 import { useState, type FormEvent } from 'react';
 import { useLocation } from 'react-router';
 import { StudentPageLayout } from '../components/StudentPageLayout';
+import { AppIcon as Icon } from '../components/Common/AppIcon';
 
 type Post = { id: number; author: string; initials: string; role: string; time: string; title: string; body: string; options: string[]; votes: number[]; comments: string[] };
 type RoomComment = { author: string; initials: string; text: string };
@@ -19,8 +20,6 @@ const initialRoomComments: RoomComment[] = [
   { author: 'Quốc Trung', initials: 'QT', text: 'Hai bên có thể bổ sung số liệu về năng suất để so sánh khách quan hơn.' },
   { author: 'Minh Anh', initials: 'MA', text: 'Cảm ơn mọi người, đội A xin phản hồi ý này ở lượt tiếp theo.' },
 ];
-
-function Icon({ name, className = '' }: { name: string; className?: string }) { return <span aria-hidden="true" className={`material-symbols-outlined ${className}`}>{name}</span>; }
 
 export function CommunityPage() {
   const location = useLocation();
