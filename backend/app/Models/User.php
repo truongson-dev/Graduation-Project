@@ -74,4 +74,14 @@ class User extends Authenticatable implements MustVerifyEmail
     {
         return $this->hasMany(AuthRefreshToken::class);
     }
+
+    /**
+     * Get the presentation sessions for the user.
+     *
+     * @return HasMany<PresentationSession, $this>
+     */
+    public function presentationSessions(): HasMany
+    {
+        return $this->hasMany(PresentationSession::class);
+    }
 }

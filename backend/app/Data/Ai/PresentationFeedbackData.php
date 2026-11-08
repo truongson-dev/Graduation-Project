@@ -12,6 +12,9 @@ class PresentationFeedbackData extends Data
      * @param  array<int, string>  $actionable_tips
      */
     public function __construct(
+        public string $transcript,
+        public int $words_per_minute,
+        public int $fillers_count,
         public int $overall_score,
         public bool $is_reading_slides,
         public int $slide_coverage_score,
@@ -38,6 +41,9 @@ class PresentationFeedbackData extends Data
         };
 
         return new self(
+            transcript: (string) ($data['transcript'] ?? ''),
+            words_per_minute: (int) ($data['words_per_minute'] ?? 0),
+            fillers_count: (int) ($data['fillers_count'] ?? 0),
             overall_score: (int) ($data['overall_score'] ?? 0),
             is_reading_slides: (bool) ($data['is_reading_slides'] ?? false),
             slide_coverage_score: (int) ($data['slide_coverage_score'] ?? 0),

@@ -17,14 +17,16 @@ class EvaluatePresentationRequest extends FormRequest
     public function rules(): array
     {
         return [
-            'slide_content' => ['required', 'string', 'max:25000'],
-            'transcript' => ['required', 'string', 'max:15000'],
+            'audio' => ['nullable', 'file', 'mimes:webm,wav,mp3,ogg,m4a,weba,mp4', 'max:25600'],
+            'slide_content' => ['nullable', 'string', 'max:50000'],
+            'title' => ['nullable', 'string', 'max:255'],
             'duration' => ['required', 'string', 'max:50'],
-            'words_per_minute' => ['required', 'integer', 'min:0', 'max:500'],
-            'fillers_count' => ['required', 'integer', 'min:0', 'max:500'],
             'eye_contact_percent' => ['required', 'integer', 'min:0', 'max:100'],
             'posture_score' => ['required', 'integer', 'min:0', 'max:100'],
             'language' => ['nullable', 'string', 'in:vi,en'],
+            'transcript' => ['nullable', 'string', 'max:25000'],
+            'words_per_minute' => ['nullable', 'integer', 'min:0', 'max:500'],
+            'fillers_count' => ['nullable', 'integer', 'min:0', 'max:500'],
         ];
     }
 }

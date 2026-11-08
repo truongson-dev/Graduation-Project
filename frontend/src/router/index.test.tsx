@@ -3,7 +3,7 @@ import { cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { createMemoryRouter } from 'react-router';
 import { RouterProvider } from 'react-router/dom';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { routes } from './router';
+import { routes } from './index';
 
 function renderAt(path: string) {
   const queryClient = new QueryClient({

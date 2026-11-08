@@ -5,6 +5,7 @@ use App\Http\Controllers\Api\V1\Ai\ConversationIndexController;
 use App\Http\Controllers\Api\V1\Ai\ConversationMessagesController;
 use App\Http\Controllers\Api\V1\Ai\FeedbackController;
 use App\Http\Controllers\Api\V1\Ai\PresentationEvaluationController;
+use App\Http\Controllers\Api\V1\Presentation\PresentationSessionController;
 use App\Http\Controllers\Api\V1\Auth\ForgotPasswordController;
 use App\Http\Controllers\Api\V1\Auth\LoginController;
 use App\Http\Controllers\Api\V1\Auth\LogoutController;
@@ -94,4 +95,21 @@ Route::prefix('v1/ai')->middleware(['auth:sanctum', EnsureAiConfigured::class])-
 
     Route::get('/conversations/{conversation}/messages', ConversationMessagesController::class)
         ->name('api.v1.ai.conversations.messages');
+});
+
+Route::prefix('v1/presentation')->middleware('auth:sanctum')->group(function (): void {
+    Route::get('/sessions', [PresentationSessionController::class, 'index'])
+        ->name('api.v1.presentation.sessions.index');
+
+    Route::get('/sessions/{id}', [PresentationSessionController::class, 'show'])
+        ->name('api.v1.presentation.sessions.show');
+
+    Route::post('/sessions/{id}/retry', [PresentationSessionController::class, 'retry'])
+        ->name('api.v1.presentation.sessions.retry');
+
+    Route::get('/sessions/{id}/audio', [PresentationSessionController::class, 'streamAudio'])
+        ->name('api.v1.presentation.sessions.audio');
+
+    Route::delete('/sessions/{id}', [PresentationSessionController::class, 'destroy'])
+        ->name('api.v1.presentation.sessions.destroy');
 });

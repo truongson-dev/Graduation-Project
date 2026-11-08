@@ -4,30 +4,21 @@ $ProjectRoot = Split-Path -Parent $MyInvocation.MyCommand.Path
 $BackendPath = Join-Path $ProjectRoot 'backend'
 $FrontendPath = Join-Path $ProjectRoot 'frontend'
 
-foreach ($CommandName in @('php', 'composer', 'npm')) {
+foreach ($CommandName in @('php', 'composer', 'pnpm')) {
   if (-not (Get-Command $CommandName -ErrorAction SilentlyContinue)) {
-    throw "Không tìm thấy '$CommandName'. Hãy cài PHP 8.3+, Composer 2 và Node.js/npm, rồi thêm vào PATH."
+    throw "Khong tim thay '$CommandName'. Hay cai PHP 8.3+, Composer 2 va Node.js/pnpm, roi them vao PATH."
   }
 }
 
 $PhpVersionText = php -r 'echo PHP_VERSION;'
 if ($LASTEXITCODE -ne 0 -or [version]$PhpVersionText -lt [version]'8.3') {
-  throw 'Backend yêu cầu PHP 8.3 trở lên.'
-}
-$PhpModules = php -m
-if ($LASTEXITCODE -ne 0 -or $PhpModules -notcontains 'pdo_sqlite') {
-  throw 'Backend cần bật PHP extension pdo_sqlite để dùng SQLite.'
+  throw 'Backend yeu cau PHP 8.3 tro len.'
 }
 
 $BackendEnvPath = Join-Path $BackendPath '.env'
 $BackendEnvExamplePath = Join-Path $BackendPath '.env.example'
 if (-not (Test-Path -LiteralPath $BackendEnvPath)) {
   Copy-Item -LiteralPath $BackendEnvExamplePath -Destination $BackendEnvPath
-}
-
-$DatabasePath = Join-Path $BackendPath 'database/database.sqlite'
-if (-not (Test-Path -LiteralPath $DatabasePath)) {
-  New-Item -ItemType File -Path $DatabasePath -Force | Out-Null
 }
 
 $FrontendEnvPath = Join-Path $FrontendPath '.env.local'
@@ -40,18 +31,18 @@ Push-Location $BackendPath
 try {
   composer install
   if ($LASTEXITCODE -ne 0) {
-    throw 'Cài dependencies backend thất bại.'
+    throw 'Cai dependencies backend that bai.'
   }
   $HasAppKey = Select-String -Path $BackendEnvPath -Pattern '^APP_KEY=base64:.+' -Quiet
   if (-not $HasAppKey) {
     php artisan key:generate
     if ($LASTEXITCODE -ne 0) {
-      throw 'Tạo APP_KEY thất bại.'
+      throw 'Tao APP_KEY that bai.'
     }
   }
   php artisan migrate --force
   if ($LASTEXITCODE -ne 0) {
-    throw 'Chạy migration database thất bại.'
+    throw 'Chay migration database that bai.'
   }
 }
 finally {
@@ -60,9 +51,9 @@ finally {
 
 Push-Location $FrontendPath
 try {
-  npm ci
+  pnpm install
   if ($LASTEXITCODE -ne 0) {
-    throw 'Cài dependencies frontend thất bại.'
+    throw 'Cai dependencies frontend that bai.'
   }
 }
 finally {
@@ -72,8 +63,11 @@ finally {
 Start-Process -FilePath 'powershell.exe' -WorkingDirectory $BackendPath -ArgumentList @(
   '-NoExit', '-Command', 'php artisan serve --host=127.0.0.1 --port=8000'
 )
+Start-Process -FilePath 'powershell.exe' -WorkingDirectory $BackendPath -ArgumentList @(
+  '-NoExit', '-Command', 'php artisan queue:work --queue=presentations,default --tries=3 --timeout=200'
+)
 Start-Process -FilePath 'powershell.exe' -WorkingDirectory $FrontendPath -ArgumentList @(
-  '-NoExit', '-Command', 'npm run dev -- --host 127.0.0.1 --port 5173 --strictPort'
+  '-NoExit', '-Command', 'pnpm run dev -- --host 127.0.0.1 --port 5173 --strictPort'
 )
 
 Write-Host 'Frontend: http://localhost:5173'

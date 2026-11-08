@@ -3,7 +3,7 @@ import { cleanup, render, screen } from '@testing-library/react';
 import { MemoryRouter } from 'react-router';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { GradePanel, type PresentationReview } from './GradePanel';
-import * as aiHooks from '../../lib/ai';
+import * as aiHooks from '../api/ai';
 
 const createWrapper = () => {
   const queryClient = new QueryClient({
@@ -36,8 +36,14 @@ describe('GradePanel', () => {
     expect(screen.getByRole('button', { name: 'Chấm điểm' })).toBeTruthy();
   });
 
-  it('renders presentation metrics and calls useEvaluatePresentation when presentationReview is passed', async () => {
+  it('submits audio blob and slide metadata via FormData and displays AI transcript and metrics', async () => {
+    const mockAudioBlob = new Blob(['fake audio content'], { type: 'audio/webm' });
+    const mockOnEvaluated = vi.fn();
+
     const mockMutateAsync = vi.fn().mockResolvedValue({
+      transcript: 'Xin chào mọi người đây là bài thuyết trình được AI chép lời.',
+      words_per_minute: 130,
+      fillers_count: 1,
       overall_score: 88,
       is_reading_slides: false,
       slide_coverage_score: 92,
@@ -57,34 +63,39 @@ describe('GradePanel', () => {
     } as unknown as ReturnType<typeof aiHooks.useEvaluatePresentation>);
 
     const review: PresentationReview = {
+      audioBlob: mockAudioBlob,
       slideContent: '[Slide 1]: Giới thiệu SoftSkill AI',
-      transcript: 'Xin chào mọi người, hôm nay tôi xin giới thiệu giải pháp AI.',
+      transcript: '',
       duration: '05:30',
-      wordsPerMinute: 125,
-      fillers: 2,
+      wordsPerMinute: 0,
+      fillers: 0,
       eyeContact: 85,
       posture: 90,
       confidence: 88,
       fileName: 'gioi-thieu.pdf',
+      language: 'vi',
     };
 
-    render(<GradePanel presentationReview={review} />, { wrapper: createWrapper() });
+    render(
+      <GradePanel presentationReview={review} onEvaluated={mockOnEvaluated} />,
+      { wrapper: createWrapper() }
+    );
 
-    // Metric bar items
+    // Initial review duration
     expect(screen.getByText('05:30')).toBeTruthy();
     expect(screen.getByText('85%')).toBeTruthy();
 
-    // Verify evaluate was triggered with payload
-    expect(mockMutateAsync).toHaveBeenCalledWith(
-      expect.objectContaining({
-        slide_content: '[Slide 1]: Giới thiệu SoftSkill AI',
-        transcript: 'Xin chào mọi người, hôm nay tôi xin giới thiệu giải pháp AI.',
-        words_per_minute: 125,
-        fillers_count: 2,
-        eye_contact_percent: 85,
-        posture_score: 90,
-      })
-    );
+    // Verify evaluate was triggered with FormData
+    expect(mockMutateAsync).toHaveBeenCalled();
+    const passedArg = mockMutateAsync.mock.calls[0][0];
+    expect(passedArg).toBeInstanceOf(FormData);
+    const formData = passedArg as FormData;
+    expect(formData.get('slide_content')).toBe('[Slide 1]: Giới thiệu SoftSkill AI');
+    expect(formData.get('duration')).toBe('05:30');
+    expect(formData.get('eye_contact_percent')).toBe('85');
+    expect(formData.get('posture_score')).toBe('90');
+    expect(formData.get('language')).toBe('vi');
+    expect(formData.get('audio')).toBeTruthy();
 
     // Feedback content displayed
     expect(await screen.findByText('88')).toBeTruthy();
@@ -92,12 +103,30 @@ describe('GradePanel', () => {
     expect(screen.getByText('92%')).toBeTruthy();
     expect(screen.getByText('Diễn giải rất phong phú và mạch lạc.')).toBeTruthy();
     expect(screen.getByText('Làm chủ nội dung')).toBeTruthy();
-    expect(screen.getByText('Nên giảm từ đệm hơn nữa')).toBeTruthy();
-    expect(screen.getByText('Tập ngắt nghỉ 1 giây trước khi chuyển slide')).toBeTruthy();
+
+    // AI computed metrics displayed
+    expect(screen.getByText('130')).toBeTruthy();
+    expect(screen.getByText('130 wpm')).toBeTruthy();
+    expect(screen.getByText('1 đệm')).toBeTruthy();
+
+    // AI computed transcript displayed
+    expect(screen.getByText('Xin chào mọi người đây là bài thuyết trình được AI chép lời.')).toBeTruthy();
+
+    // onEvaluated callback fired
+    expect(mockOnEvaluated).toHaveBeenCalledWith(
+      expect.objectContaining({
+        transcript: 'Xin chào mọi người đây là bài thuyết trình được AI chép lời.',
+        words_per_minute: 130,
+        fillers_count: 1,
+      })
+    );
   });
 
   it('renders reading warning when AI flags is_reading_slides as true', async () => {
     const mockMutateAsync = vi.fn().mockResolvedValue({
+      transcript: 'Dòng 1 text. Dòng 2 text.',
+      words_per_minute: 110,
+      fillers_count: 5,
       overall_score: 55,
       is_reading_slides: true,
       slide_coverage_score: 70,

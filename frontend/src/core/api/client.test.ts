@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { csrfCookieUrl, getApiError } from './api';
+import { csrfCookieUrl, getApiError } from './client';
 
 describe('getApiError', () => {
   it('maps Laravel validation errors to field messages', () => {
