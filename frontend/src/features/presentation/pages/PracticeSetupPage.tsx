@@ -144,8 +144,8 @@ export const PracticeSetupPage: React.FC = () => {
   const acceptFile = (candidate?: File) => {
     if (!candidate) return;
     const extension = candidate.name.split('.').pop()?.toLowerCase();
-    if (!['pdf', 'ppt', 'pptx'].includes(extension ?? '')) {
-      setNotice('Vui lòng chọn file định dạng PDF, PPT hoặc PPTX.');
+    if (extension !== 'pdf') {
+      setNotice('Vui lòng chọn tệp PDF (.pdf).');
       return;
     }
     if (candidate.size > MAX_PDF_SIZE_BYTES) {
@@ -252,11 +252,7 @@ export const PracticeSetupPage: React.FC = () => {
 
   const previewFile = () => {
     if (!file) return;
-    if (file.file.type === 'application/pdf' || file.file.name.toLowerCase().endsWith('.pdf')) {
-      window.open(file.url, '_blank', 'noopener,noreferrer');
-    } else {
-      setNotice('Đã chọn slide PowerPoint. Bạn có thể xem slide đầy đủ khi bước vào phiên thuyết trình trực tiếp.');
-    }
+    window.open(file.url, '_blank', 'noopener,noreferrer');
   };
 
   const startPractice = () => {
@@ -289,43 +285,6 @@ export const PracticeSetupPage: React.FC = () => {
   return (
     <StudentPageLayout active="/practice/setup" title="Chuẩn bị thuyết trình">
       <div className="mx-auto max-w-[1500px] pb-10">
-        {/* Page Subtitle / Introduction */}
-        <div className="mb-6 rounded-2xl bg-white p-5 border border-slate-200/80 shadow-xs">
-          <div className="flex flex-wrap items-center justify-between gap-3">
-            <div>
-              <h1 className="text-xl font-extrabold text-[#19345d] sm:text-2xl flex items-center gap-2.5">
-                <Icon name="co_present" className="text-blue-700 text-28px" /> Thiết lập phòng luyện tập thuyết trình
-              </h1>
-              <p className="mt-1 text-xs text-slate-500 max-w-2xl">
-                Tải lên slide nội dung và kiểm tra thiết bị ghi hình, âm thanh để trợ lý AI sẵn sàng theo dõi và đánh giá bạn.
-              </p>
-            </div>
-            <div className="flex items-center gap-2">
-              <Badge
-                variant={
-                  networkStatus === 'stable' ? 'outline' :
-                  networkStatus === 'poor' || networkStatus === 'weak' ? 'secondary' :
-                  networkStatus === 'offline' ? 'destructive' : 'outline'
-                }
-                className={`gap-1.5 px-3 py-1 text-xs font-semibold ${
-                  networkStatus === 'stable' ? 'border-emerald-200 bg-emerald-50 text-emerald-700' :
-                  networkStatus === 'poor' || networkStatus === 'weak' ? 'border-amber-200 bg-amber-50 text-amber-700' : ''
-                }`}
-              >
-                <span className={`size-2 rounded-full ${
-                  networkStatus === 'stable' ? 'bg-emerald-500' :
-                  networkStatus === 'weak' || networkStatus === 'poor' ? 'bg-amber-500' :
-                  networkStatus === 'offline' ? 'bg-rose-500' : 'bg-slate-400 animate-pulse'
-                }`} />
-                {networkStatus === 'stable' ? 'Kết nối mạng ổn định' :
-                 networkStatus === 'weak' ? 'Kết nối mạng hơi chậm' :
-                 networkStatus === 'poor' ? 'Độ trễ mạng cao' :
-                 networkStatus === 'offline' ? 'Mất kết nối mạng' : 'Đang kiểm tra mạng...'}
-              </Badge>
-            </div>
-          </div>
-        </div>
-
         {/* 2-Column Studio Setup Grid */}
         <div className="grid grid-cols-1 items-start gap-6 lg:grid-cols-2">
           {/* Left Column: Slide & Tips */}
@@ -337,14 +296,14 @@ export const PracticeSetupPage: React.FC = () => {
                   <Icon name="description" className="text-blue-700" /> Tài liệu &amp; Slide thuyết trình
                 </h2>
                 <Badge variant="secondary" className="px-2.5 py-0.5 text-[11px] font-semibold text-slate-600 bg-slate-100 border border-slate-200/70">
-                  PDF, PPT, PPTX • Tối đa 100 MB
+                  Chỉ PDF • Tối đa 100 MB
                 </Badge>
               </div>
 
               <input
                 ref={fileInputRef}
                 type="file"
-                accept=".pdf,.ppt,.pptx,application/pdf,application/vnd.ms-powerpoint,application/vnd.openxmlformats-officedocument.presentationml.presentation"
+                accept=".pdf,application/pdf"
                 className="sr-only"
                 aria-label="Chọn slide thuyết trình"
                 onChange={handleFileInput}
@@ -365,10 +324,7 @@ export const PracticeSetupPage: React.FC = () => {
                   <div className="rounded-xl bg-white p-4 shadow-xs border border-slate-200/70">
                     <div className="flex flex-wrap items-center gap-3">
                       <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-rose-50 text-rose-600 border border-rose-100 shadow-2xs">
-                        <Icon
-                          name={file.file.name.toLowerCase().endsWith('.pdf') ? 'picture_as_pdf' : 'slideshow'}
-                          className="text-2xl text-rose-600"
-                        />
+                        <Icon name="picture_as_pdf" className="text-2xl text-rose-600" />
                       </span>
                       <div className="min-w-0 flex-1 text-left">
                         <p className="truncate text-sm font-bold text-slate-800">{file.file.name}</p>
@@ -424,7 +380,7 @@ export const PracticeSetupPage: React.FC = () => {
                       </button>
                     </p>
                     <p className="mt-1 text-xs text-slate-500">
-                      Hỗ trợ tập tin PDF (.pdf) hoặc bản trình chiếu PowerPoint (.ppt, .pptx)
+                      Chỉ hỗ trợ tập tin PDF (.pdf)
                     </p>
                   </div>
                 )}

@@ -9,6 +9,9 @@ export const AuthPage: FC = () => {
   const me = useMe();
 
   if (me.data) {
+    if (me.data.roles?.includes('admin')) {
+      return <Navigate to="/admin" replace />;
+    }
     return <Navigate to="/home" replace />;
   }
 

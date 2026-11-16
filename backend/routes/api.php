@@ -18,6 +18,10 @@ use App\Http\Controllers\Api\V1\Auth\SocialiteCallbackController;
 use App\Http\Controllers\Api\V1\Auth\SocialiteExchangeController;
 use App\Http\Controllers\Api\V1\Auth\SocialiteRedirectController;
 use App\Http\Controllers\Api\V1\Auth\VerifyEmailController;
+use App\Http\Controllers\Api\V1\Admin\AdminDashboardController;
+use App\Http\Controllers\Api\V1\Admin\AdminUserController;
+use App\Http\Controllers\Api\V1\Admin\AdminLearningPathController;
+use App\Http\Controllers\Api\V1\LearningPathController;
 use App\Http\Middleware\EnsureAiConfigured;
 use Illuminate\Support\Facades\Route;
 
@@ -97,6 +101,9 @@ Route::prefix('v1/ai')->middleware(['auth:sanctum', EnsureAiConfigured::class])-
         ->name('api.v1.ai.conversations.messages');
 });
 
+Route::get('v1/learning-paths', LearningPathController::class)
+    ->name('api.v1.learning-paths.index');
+
 Route::prefix('v1/presentation')->middleware('auth:sanctum')->group(function (): void {
     Route::get('/sessions', [PresentationSessionController::class, 'index'])
         ->name('api.v1.presentation.sessions.index');
@@ -112,4 +119,13 @@ Route::prefix('v1/presentation')->middleware('auth:sanctum')->group(function ():
 
     Route::delete('/sessions/{id}', [PresentationSessionController::class, 'destroy'])
         ->name('api.v1.presentation.sessions.destroy');
+});
+
+Route::prefix('v1/admin')->middleware(['auth:sanctum', 'role:admin'])->group(function (): void {
+    Route::get('/dashboard', AdminDashboardController::class)->name('api.v1.admin.dashboard');
+    Route::get('/learning-paths', [AdminLearningPathController::class, 'index'])->name('api.v1.admin.learning-paths.index');
+    Route::patch('/learning-paths/{learningPath}', [AdminLearningPathController::class, 'update'])->name('api.v1.admin.learning-paths.update');
+    Route::get('/users', [AdminUserController::class, 'index'])->name('api.v1.admin.users.index');
+    Route::get('/users/{user}', [AdminUserController::class, 'show'])->name('api.v1.admin.users.show');
+    Route::patch('/users/{user}/status', [AdminUserController::class, 'updateStatus'])->name('api.v1.admin.users.status');
 });

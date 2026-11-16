@@ -97,13 +97,17 @@ export const AuthForm: React.FC<AuthFormProps> = ({ onForgotPassword }) => {
     setSuccessMessage(null);
 
     try {
-      await login.mutateAsync({
+      const user = await login.mutateAsync({
         email: values.email,
         password: values.password,
         remember: values.rememberMe,
       });
       setLoginLockoutUntil(null);
-      navigate('/home', { replace: true });
+      if (user.roles?.includes('admin')) {
+        navigate('/admin', { replace: true });
+      } else {
+        navigate('/home', { replace: true });
+      }
     } catch (error) {
       const info = getApiError(error);
 

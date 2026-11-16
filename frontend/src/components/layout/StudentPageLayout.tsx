@@ -31,6 +31,7 @@ import {
   ChevronsUpDown,
   CreditCard,
   LogOut,
+  ShieldCheck,
   Sparkles,
 } from 'lucide-react';
 
@@ -56,7 +57,7 @@ function UserDropdownMenuContent({
   sideOffset = 14,
   className,
 }: {
-  user?: { name?: string; email?: string; avatar_url?: string | null } | null;
+  user?: { name?: string; email?: string; avatar_url?: string | null; roles?: string[] } | null;
   initials: string;
   onLogout: () => void;
   isLoggingOut?: boolean;
@@ -65,6 +66,7 @@ function UserDropdownMenuContent({
   sideOffset?: number;
   className?: string;
 }) {
+  const navigate = useNavigate();
   return (
     <DropdownMenuContent
       side={side}
@@ -87,6 +89,21 @@ function UserDropdownMenuContent({
       </div>
 
       <DropdownMenuSeparator className="my-1 -mx-1" />
+
+      {user?.roles?.includes('admin') && (
+        <>
+          <DropdownMenuGroup>
+            <DropdownMenuItem
+              onClick={() => navigate('/admin')}
+              className="cursor-pointer gap-2.5 rounded-lg px-2.5 py-2 text-xs font-bold text-indigo-700 bg-indigo-50/80 hover:bg-indigo-100 hover:text-indigo-900 transition-colors"
+            >
+              <ShieldCheck className="size-4 text-indigo-600" />
+              <span>Trang quản trị (Admin)</span>
+            </DropdownMenuItem>
+          </DropdownMenuGroup>
+          <DropdownMenuSeparator className="my-1 -mx-1" />
+        </>
+      )}
 
       <DropdownMenuGroup>
         <DropdownMenuItem className="cursor-pointer gap-2.5 rounded-lg px-2.5 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-100 hover:text-slate-900 transition-colors">
@@ -132,11 +149,13 @@ export function StudentPageLayout({
   title,
   children,
   maxWidth = 'max-w-[1720px]',
+  bgClassName = 'bg-[#f1f4fa]',
 }: {
   active: string;
   title?: string;
   children: ReactNode;
   maxWidth?: string;
+  bgClassName?: string;
 }) {
   const [collapsed, toggleCollapsed] = useSidebarCollapsed();
   const [mobileOpen, setMobileOpen] = useState(false);
@@ -220,7 +239,7 @@ export function StudentPageLayout({
   );
 
   return (
-    <div className="min-h-screen bg-[#f1f4fa] text-slate-800">
+    <div className={`min-h-screen ${bgClassName} text-slate-800`}>
       <aside
         className={`fixed inset-y-0 left-0 z-40 hidden flex-col border-r border-slate-200/80 bg-white px-[18px] transition-[width] duration-300 ease-in-out overflow-hidden will-change-[width] lg:flex ${
           collapsed ? 'w-[76px]' : 'w-[260px]'
@@ -363,7 +382,7 @@ export function StudentPageLayout({
 
       <div className={`transition-[padding-left] duration-300 ease-in-out ${collapsed ? 'lg:pl-[76px]' : 'lg:pl-[260px]'}`}>
         <header
-          className={`fixed inset-x-0 top-0 z-30 flex h-[68px] items-center justify-between border-b border-slate-200/80 bg-white/90 px-4 shadow-sm backdrop-blur-xl transition-[left] duration-300 ease-in-out sm:px-6 ${
+          className={`fixed inset-x-0 top-0 z-40 flex h-[68px] items-center justify-between border-b border-slate-200/80 bg-white/90 px-4 shadow-sm backdrop-blur-xl transition-[left] duration-300 ease-in-out sm:px-6 ${
             collapsed ? 'lg:left-[76px]' : 'lg:left-[260px]'
           } lg:px-8`}
         >

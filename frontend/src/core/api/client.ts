@@ -40,6 +40,17 @@ export const endpoints = {
     retry: (id: string) => `/presentation/sessions/${id}/retry`,
     audio: (id: string) => `/presentation/sessions/${id}/audio`,
   },
+  admin: {
+    dashboard: '/admin/dashboard',
+    users: '/admin/users',
+    user: (id: string | number) => `/admin/users/${id}`,
+    userStatus: (id: string | number) => `/admin/users/${id}/status`,
+    learningPaths: '/admin/learning-paths',
+    learningPath: (id: string | number) => `/admin/learning-paths/${id}`,
+  },
+  learning: {
+    paths: '/learning-paths',
+  },
 } as const;
 
 /** Build an absolute backend URL for full-page navigations that bypass axios. */
