@@ -1,4 +1,4 @@
-import type { PresentationReview } from '@/features/coach/components/GradePanel';
+import type { PresentationReview } from '../types';
 
 const STORAGE_KEY = 'softskill.presentation-history.v1';
 const MAX_ENTRIES = 10;

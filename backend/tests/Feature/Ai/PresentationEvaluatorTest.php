@@ -22,6 +22,8 @@ it('defines instructions, schema, and 180s timeout for presentation evaluation',
         ->and($instructions)->toContain('is_reading_slides')
         ->and($instructions)->toContain('voice_feedback')
         ->and($instructions)->toContain('body_language_feedback')
+        ->and($instructions)->toContain('QUY TẮC BẮT BUỘC KHI ÂM THANH IM LẶNG')
+        ->and($instructions)->toContain('TUYỆT ĐỐI KHÔNG ĐƯỢC tự bịa đặt')
         ->and($agent->timeout())->toBe(180);
 });
 
@@ -41,6 +43,8 @@ it('customizes instructions for english presentation when language is en', funct
         ->and($instructions)->toContain('130-160')
         ->and($instructions)->toContain('um')
         ->and($instructions)->toContain('ending sounds')
+        ->and($instructions)->toContain('MANDATORY ZERO-SPEECH / SILENCE RULE')
+        ->and($instructions)->toContain('DO NOT hallucinate')
         ->and($agent->timeout())->toBe(180);
 });
 

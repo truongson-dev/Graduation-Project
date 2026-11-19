@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { Avatar, AvatarFallback } from '../ui/avatar';
-import { cn } from '../../lib/utils';
+import { cn } from '@/core/utils/cn';
 
 export interface UserAvatarProps {
   avatarUrl?: string | null;

@@ -1,120 +1,218 @@
-import { useMemo, useState } from 'react';
-import { useNavigate, useSearchParams } from 'react-router';
+import React, { useState } from 'react';
+import { useParams, useNavigate, Link } from 'react-router';
+import { StudentPageLayout } from '@/components/layout/StudentPageLayout';
 import { AppIcon as Icon } from '@/components/layout/AppIcon';
-import { markLearningCompletedToday } from '../api/daily-learning';
-
-type Question = { type: 'choice' | 'true_false' | 'fill_blank'; prompt: string; options?: string[]; answer: number | string; explanation: string };
-
-const questions: Question[] = [
-  { type: 'choice', prompt: 'Đồng nghiệp nói: “Việc này cần làm gấp.” Bạn nên hỏi gì để làm rõ yêu cầu?', options: ['Gấp thật không?', 'Khi nào bạn cần hoàn thành?', 'Tôi sẽ làm khi có thể.', 'Việc nào cũng gấp cả.'], answer: 1, explanation: 'Hỏi về thời hạn giúp biến yêu cầu mơ hồ thành một mốc thời gian cụ thể.' },
-  { type: 'choice', prompt: 'Câu hỏi nào giúp làm rõ tiêu chí hoàn thành công việc?', options: ['Kết quả cuối cùng cần trông như thế nào?', 'Việc này có khó không?', 'Em làm xong là được chứ?', 'Ai cũng làm như vậy đúng không?'], answer: 0, explanation: 'Câu hỏi làm rõ giúp hai bên thống nhất thế nào là hoàn thành.' },
-  { type: 'choice', prompt: 'Sau khi người nói trả lời chung chung, bạn nên làm gì?', options: ['Đổi chủ đề.', 'Đặt câu hỏi đào sâu hoặc yêu cầu ví dụ cụ thể.', 'Kết luận thay họ.', 'Không hỏi thêm.'], answer: 1, explanation: 'Câu hỏi đào sâu đưa câu trả lời từ khái quát thành thông tin có thể kiểm chứng.' },
-  { type: 'true_false', prompt: 'Câu hỏi mở tạo không gian để người đối diện suy nghĩ và chia sẻ nhiều hơn.', options: ['Đúng', 'Sai'], answer: 0, explanation: 'Đúng. Câu hỏi mở không giới hạn câu trả lời trong “có” hoặc “không”.' },
-  { type: 'true_false', prompt: 'Câu hỏi đóng luôn là lựa chọn tốt nhất khi cần khám phá nguyên nhân.', options: ['Đúng', 'Sai'], answer: 1, explanation: 'Sai. Khi khám phá nguyên nhân, nên bắt đầu bằng câu hỏi mở.' },
-  { type: 'fill_blank', prompt: 'Câu hỏi ______ giúp loại bỏ sự mơ hồ về yêu cầu, tiêu chí hoặc thời hạn.', answer: 'làm rõ', explanation: 'Đáp án: làm rõ.' },
-  { type: 'fill_blank', prompt: 'Kỹ thuật hỏi “Tại sao?” nhiều lần để tìm nguyên nhân gốc được gọi là ______ Whys.', answer: '5', explanation: 'Đáp án: 5 Whys.' },
-  { type: 'choice', prompt: 'Khi nhóm chỉ đưa ra hai phương án đối lập, câu hỏi nào giúp tư duy rộng hơn?', options: ['Phương án nào nhanh hơn?', 'Lựa chọn thứ ba có thể là gì?', 'Ai chịu trách nhiệm?', 'Có cần làm ngay không?'], answer: 1, explanation: 'Tìm lựa chọn thứ ba giúp nhóm thoát khỏi tư duy chỉ có hai khả năng.' },
-  { type: 'choice', prompt: 'Muốn hỏi AI và nhận kết quả rõ ràng, prompt nên có gì?', options: ['Viết giúp tôi đi.', 'Hãy làm thật hay.', 'Mục tiêu, bối cảnh, đầu ra và giới hạn.', 'Bạn biết mọi thứ đúng không?'], answer: 2, explanation: 'Mục tiêu, bối cảnh, đầu ra và giới hạn giúp AI hiểu đúng nhiệm vụ.' },
-  { type: 'true_false', prompt: 'Một câu hỏi tốt cần có mục đích rõ ràng và phù hợp với người được hỏi.', options: ['Đúng', 'Sai'], answer: 0, explanation: 'Đúng. Mục đích và bối cảnh quyết định cách chọn câu hỏi.' },
-];
+import { useLessonQuery } from '../api/useLesson';
+import { useLessonAttemptMutation } from '../api/useLessonAttempt';
+import { useGamificationQuery } from '../api/useGamification';
+import { TheoryContent } from '../components/TheoryContent';
+import { QuizContent } from '../components/QuizContent';
+import { WritingContent } from '../components/WritingContent';
+import { LessonResultModal } from '../components/LessonResultModal';
+import { GamificationSidebar } from '../components/GamificationSidebar';
+import type { AttemptResult } from '../types';
 
 export const LessonPage: React.FC = () => {
+  const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
-  const [params] = useSearchParams();
-  const topic = params.get('topic') || 'Nghệ thuật đặt câu hỏi';
-  const lesson = params.get('lesson') || 'Câu hỏi mở và câu hỏi đóng';
-  const ordered = useMemo(() => [...questions].sort(() => Math.random() - 0.5), []);
-  const [index, setIndex] = useState(0);
-  const [selected, setSelected] = useState<number | null>(null);
-  const [text, setText] = useState('');
-  const [submitted, setSubmitted] = useState(false);
-  const question = ordered[index];
-  const correct = question.type === 'fill_blank' ? text.trim().toLocaleLowerCase() === String(question.answer).toLocaleLowerCase() : selected === question.answer;
 
-  const submit = () => { if ((question.type === 'fill_blank' ? !text.trim() : selected === null) || submitted) return; setSubmitted(true); };
-  const next = () => {
-    if (index >= ordered.length - 1) {
-      markLearningCompletedToday();
-      navigate('/learning-path');
-      return;
-    }
-    setIndex((value) => value + 1);
-    setSelected(null);
-    setText('');
-    setSubmitted(false);
+  const { data: lesson, isLoading, error } = useLessonQuery(id);
+  const { data: gamification } = useGamificationQuery();
+  const attemptMutation = useLessonAttemptMutation(id);
+
+  const [attemptResult, setAttemptResult] = useState<AttemptResult | null>(null);
+
+  const handleTheoryComplete = () => {
+    attemptMutation.mutate(
+      { completed: true },
+      {
+        onSuccess: (data) => setAttemptResult(data),
+      }
+    );
   };
 
-  return <main className="min-h-screen bg-white text-slate-800">
-    <div className="mx-auto flex min-h-screen w-full max-w-5xl flex-col px-5 py-7 sm:px-10">
-      <header className="flex items-center gap-4">
-        <button type="button" onClick={() => navigate('/learning-path')} aria-label="Thoát bài học" className="text-3xl leading-none text-slate-400 hover:text-slate-700">×</button>
-        <div className="h-4 flex-1 overflow-hidden rounded-full bg-slate-200">
-          <div className="h-full rounded-full bg-[#1cb0f6] transition-all" style={{ width: `${((index + (submitted ? 1 : 0)) / ordered.length) * 100}%` }} />
-        </div>
-        <span className="text-lg font-bold text-[#1cb0f6]">💙∞</span>
-      </header>
-      <section className="mx-auto flex w-full max-w-2xl flex-1 flex-col pt-12">
-        <p className="text-center text-xs font-bold uppercase tracking-[.16em] text-[#1cb0f6]">{topic}</p>
-        <h1 className="mt-2 text-center text-2xl font-extrabold text-slate-800">{lesson}</h1>
-        <p className="mt-12 text-center text-lg font-extrabold leading-relaxed">{question.prompt}</p>
-        {question.type === 'fill_blank' ? (
-          <input value={text} onChange={(event) => setText(event.target.value)} disabled={submitted} placeholder="Nhập đáp án" className="mx-auto mt-8 w-full max-w-md rounded-xl border-2 border-slate-200 px-4 py-4 text-center text-lg font-semibold outline-none focus:border-[#1cb0f6]" />
-        ) : (
-          <div className="mt-8 grid gap-3 sm:grid-cols-2">
-            {(question.options || []).map((option, optionIndex) => (
-              <button
-                key={option}
-                type="button"
-                disabled={submitted}
-                onClick={() => setSelected(optionIndex)}
-                className={`rounded-2xl border-2 px-4 py-4 text-left font-semibold transition ${
-                  submitted && optionIndex === question.answer
-                    ? 'border-[#1cb0f6] bg-sky-50 text-sky-900 shadow-sm'
-                    : submitted && selected === optionIndex
-                    ? 'border-rose-400 bg-rose-50 text-rose-700'
-                    : selected === optionIndex
-                    ? 'border-[#1cb0f6] bg-sky-50/70 text-sky-900 ring-2 ring-sky-200'
-                    : 'border-slate-200 hover:border-sky-300 hover:bg-sky-50/40'
-                }`}
-              >
-                <span className="mr-2 text-slate-400 font-bold">{String.fromCharCode(65 + optionIndex)}.</span>{option}
-              </button>
-            ))}
-          </div>
-        )}
-      </section>
-      {submitted ? (
-        <div className={`${correct ? 'bg-sky-50 border-sky-200' : 'bg-amber-50 border-amber-200'} -mx-5 mt-8 border-t px-5 py-5 sm:-mx-10 sm:px-10`}>
-          <div className="mx-auto flex max-w-2xl items-center justify-between gap-4">
-            <div>
-              <p className={`text-lg font-extrabold ${correct ? 'text-[#0284c7]' : 'text-amber-700'}`}>
-                {correct ? '✓ Làm tốt lắm! +10 KN' : 'Chưa chính xác, hãy thử lại!'}
-              </p>
-              <p className="mt-1 text-sm text-slate-600">{question.explanation}</p>
-            </div>
-            <button
-              type="button"
-              onClick={next}
-              className="rounded-2xl bg-[#1cb0f6] px-6 py-3 font-extrabold text-white shadow-[0_4px_0_#1899d6] transition hover:bg-[#1899d6] active:translate-y-1 active:shadow-none"
-            >
-              {index === ordered.length - 1 ? 'Hoàn thành' : 'Tiếp tục'}
-            </button>
+  const handleQuizSubmit = (answers: number[]) => {
+    attemptMutation.mutate(
+      { answers },
+      {
+        onSuccess: (data) => setAttemptResult(data),
+      }
+    );
+  };
+
+  const handleWritingSubmit = (content: string) => {
+    attemptMutation.mutate(
+      { content },
+      {
+        onSuccess: (data) => setAttemptResult(data),
+      }
+    );
+  };
+
+  const handleRetry = () => {
+    setAttemptResult(null);
+  };
+
+  const handleNextLesson = () => {
+    if (attemptResult?.next_lesson?.id) {
+      setAttemptResult(null);
+      navigate(`/learning/lesson/${attemptResult.next_lesson.id}`);
+    } else {
+      navigate('/learning-path');
+    }
+  };
+
+  const handleBackToPath = () => {
+    navigate('/learning-path');
+  };
+
+  if (isLoading) {
+    return (
+      <StudentPageLayout active="/learning-path" title="Đang tải bài học...">
+        <div className="flex h-64 items-center justify-center">
+          <div className="flex items-center gap-3 text-slate-500">
+            <div className="h-5 w-5 animate-spin rounded-full border-2 border-blue-600 border-t-transparent" />
+            <span className="text-sm font-semibold">Đang chuẩn bị nội dung bài học...</span>
           </div>
         </div>
-      ) : (
-        <footer className="mt-8 flex items-center justify-between border-t border-slate-200 pt-5">
-          <button type="button" onClick={next} className="rounded-2xl border-2 border-slate-200 px-6 py-3 font-bold text-slate-400 hover:bg-slate-50">BỎ QUA</button>
-          <span className="text-sm font-semibold text-slate-400">⌨ SỬ DỤNG BÀN PHÍM</span>
+      </StudentPageLayout>
+    );
+  }
+
+  if (error || !lesson) {
+    return (
+      <StudentPageLayout active="/learning-path" title="Không tìm thấy bài học">
+        <div className="rounded-2xl border border-rose-200 bg-rose-50 p-6 text-center">
+          <Icon name="error" className="mx-auto text-3xl text-rose-500" />
+          <h2 className="mt-2 text-base font-bold text-rose-900">
+            Không thể tải bài học hoặc bài học đang bị khóa
+          </h2>
+          <p className="mt-1 text-xs text-rose-700">
+            Vui lòng hoàn thành các bài học trước để mở khóa bài học này.
+          </p>
           <button
             type="button"
-            onClick={submit}
-            disabled={question.type === 'fill_blank' ? !text.trim() : selected === null}
-            className="rounded-2xl bg-[#1cb0f6] px-7 py-3 font-extrabold text-white shadow-[0_4px_0_#1899d6] transition hover:bg-[#1899d6] active:translate-y-1 active:shadow-none disabled:bg-slate-200 disabled:shadow-none disabled:cursor-not-allowed"
+            onClick={handleBackToPath}
+            className="mt-4 inline-flex items-center gap-1.5 rounded-xl bg-blue-600 px-5 py-2.5 text-xs font-bold text-white shadow-sm hover:bg-blue-700"
           >
-            KIỂM TRA
+            <Icon name="arrow_back" className="text-sm" />
+            <span>Quay lại lộ trình</span>
           </button>
-        </footer>
+        </div>
+      </StudentPageLayout>
+    );
+  }
+
+  const isOutOfLives = (gamification?.lives_count ?? 5) <= 0;
+
+  return (
+    <StudentPageLayout active="/learning-path" title={lesson.title} maxWidth="max-w-[1420px]">
+      <div className="grid items-start gap-6 xl:grid-cols-[minmax(0,1fr)_360px]">
+        <main className="space-y-6">
+          {/* Top navigation & metadata */}
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <Link
+              to="/learning-path"
+              className="inline-flex items-center gap-1.5 text-xs font-bold text-blue-700 hover:text-blue-900"
+            >
+              <Icon name="arrow_back" className="text-sm" />
+              <span>Quay về lộ trình học</span>
+            </Link>
+
+            <div className="flex items-center gap-2">
+              <span className="rounded-full bg-blue-50 px-3 py-1 text-[11px] font-bold text-blue-700">
+                {lesson.section.title}
+              </span>
+              <span className="rounded-full bg-amber-50 px-3 py-1 text-[11px] font-bold text-amber-700">
+                +{lesson.xp_reward} XP
+              </span>
+            </div>
+          </div>
+
+          {/* Lesson Header Banner */}
+          <div className="rounded-[22px] bg-gradient-to-r from-blue-700 via-blue-600 to-sky-500 p-6 text-white shadow-md">
+            <div className="flex items-center gap-2 text-[10px] font-bold uppercase tracking-wider text-blue-100">
+              <Icon
+                name={
+                  lesson.type === 'theory'
+                    ? 'menu_book'
+                    : lesson.type === 'quiz'
+                    ? 'quiz'
+                    : 'edit_note'
+                }
+                className="text-sm"
+              />
+              <span>
+                {lesson.type === 'theory'
+                  ? 'BÀI ĐỌC LÝ THUYẾT'
+                  : lesson.type === 'quiz'
+                  ? 'BÀI TRẮC NGHIỆM'
+                  : 'BÀI THỰC HÀNH VIẾT'}
+              </span>
+            </div>
+            <h1 className="mt-1 text-xl font-extrabold sm:text-2xl">{lesson.title}</h1>
+            <p className="mt-1 text-xs text-blue-50">
+              {lesson.type === 'theory'
+                ? 'Đọc kỹ các nguyên tắc và ví dụ dưới đây để nắm vững kỹ năng.'
+                : lesson.type === 'quiz'
+                ? `Cần đạt tối thiểu ${lesson.pass_threshold}% điểm để qua bài.`
+                : 'Bài làm sẽ được AI Giảng Viên chấm điểm và nhận xét chi tiết.'}
+            </p>
+          </div>
+
+          {/* Out of lives warning */}
+          {isOutOfLives && (
+            <div className="rounded-2xl border border-rose-200 bg-rose-50 p-4 text-xs font-medium text-rose-900">
+              <div className="flex items-center gap-2 font-bold text-rose-700">
+                <Icon name="heart_broken" className="text-base" />
+                <span>Bạn đã hết tim</span>
+              </div>
+              <p className="mt-1">
+                Bạn cần đợi thời gian hồi tim để làm bài tập trắc nghiệm hoặc viết.
+              </p>
+            </div>
+          )}
+
+          {/* Render content by lesson type */}
+          {lesson.type === 'theory' && (
+            <TheoryContent
+              content={lesson.content}
+              onComplete={handleTheoryComplete}
+              isSubmitting={attemptMutation.isPending}
+            />
+          )}
+
+          {lesson.type === 'quiz' && (
+            <QuizContent
+              questions={lesson.content.questions || []}
+              onSubmit={handleQuizSubmit}
+              isSubmitting={attemptMutation.isPending}
+            />
+          )}
+
+          {lesson.type === 'writing' && (
+            <WritingContent
+              content={lesson.content}
+              onSubmit={handleWritingSubmit}
+              isSubmitting={attemptMutation.isPending}
+            />
+          )}
+        </main>
+
+        {/* Sidebar */}
+        <GamificationSidebar />
+      </div>
+
+      {/* Result Modal */}
+      {attemptResult && (
+        <LessonResultModal
+          result={attemptResult}
+          lessonTitle={lesson.title}
+          onNextLesson={attemptResult.next_lesson ? handleNextLesson : undefined}
+          onRetry={handleRetry}
+          onBackToPath={handleBackToPath}
+        />
       )}
-    </div>
-  </main>;
+    </StudentPageLayout>
+  );
 };

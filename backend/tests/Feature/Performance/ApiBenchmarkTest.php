@@ -190,6 +190,11 @@ it('benchmarks response times of all api endpoints', function () {
     });
 
     // 14. AI: Chat Stream
+    Laravel\Ai\Classification::fake(fn () => [
+        'is_prompt_injection' => new Laravel\Ai\Responses\Data\BooleanAnswer(0.05),
+        'topic_scope' => new Laravel\Ai\Responses\Data\ChoiceAnswer('soft_skill', ['soft_skill' => 0.95, 'restricted_professional' => 0.05], 0.95),
+        'is_spam_or_nonsense' => new Laravel\Ai\Responses\Data\BooleanAnswer(0.05),
+    ]);
     SoftSkillCoach::fake(['Phản hồi huấn luyện viên kiểm thử hiệu năng.']);
     $benchmark('AI: Chat Stream (SSE)', 'POST', '/api/v1/ai/chat', function () use ($meUser) {
         return $this->actingAs($meUser)->post(

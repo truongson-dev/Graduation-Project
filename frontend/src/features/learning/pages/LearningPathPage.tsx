@@ -1,748 +1,396 @@
-import { useEffect, useState } from 'react';
-import { Link, useNavigate } from 'react-router';
+import React, { useState } from 'react';
+import { useNavigate } from 'react-router';
 import { StudentPageLayout } from '@/components/layout/StudentPageLayout';
 import { Progress } from '@/components/ui/progress';
 import { Badge } from '@/components/ui/badge';
-import { AppIcon as Icon, StreakFlameIcon } from '@/components/layout/AppIcon';
-import { CURRENT_TOURNAMENT } from '@/features/community/api/tournament';
-import { MAX_LEARNING_LIVES, readLearningLives, type LearningLives } from '../api/learning-lives';
-import { useLearningPaths } from '../api/learning-paths';
-import bookIcon from '@/assets/learning/book-icon.png';
-import dumbbellIcon from '@/assets/learning/dumbbell-icon.png';
+import { AppIcon as Icon } from '@/components/layout/AppIcon';
+import { useLearningPathQuery, useSectionQuery } from '../api/useLearningPath';
+import { GamificationSidebar } from '../components/GamificationSidebar';
+import type { SectionSummary } from '../types';
 
-function formatRefillTimer(milliseconds: number) {
-  const totalSeconds = Math.max(0, Math.ceil(milliseconds / 1000));
-  const hours = Math.floor(totalSeconds / 3600).toString().padStart(2, '0');
-  const minutes = Math.floor((totalSeconds % 3600) / 60).toString().padStart(2, '0');
-  const seconds = (totalSeconds % 60).toString().padStart(2, '0');
-  return `${hours}:${minutes}:${seconds}`;
+function buildLessonPath(count: number) {
+  if (count < 1) return '';
+  let path = 'M 270 65';
+  for (let index = 1; index < count; index += 1) {
+    const previousX = (index - 1) % 2 === 0 ? 270 : 160;
+    const nextX = index % 2 === 0 ? 270 : 160;
+    const previousY = 65 + (index - 1) * 132;
+    const nextY = 65 + index * 132;
+    const midY = (previousY + nextY) / 2;
+    path += ` C ${previousX} ${midY}, ${nextX} ${midY}, ${nextX} ${nextY}`;
+  }
+  return path;
 }
-
-function HeartIcon({ active }: { active: boolean }) {
-  return (
-    <svg aria-hidden="true" viewBox="0 0 24 24" className={`h-4 w-4 ${active ? 'text-[#1cb0f6] fill-[#1cb0f6]' : 'text-slate-300'}`} fill="none" stroke="currentColor" strokeWidth="2">
-      <path d="M19 14c1.49-1.46 3-3.21 3-5.5A5.5 5.5 0 0 0 16.5 3c-1.76 0-3 .5-4.5 2-1.5-1.5-2.74-2-4.5-2A5.5 5.5 0 0 0 2 8.5c0 2.3 1.5 4.05 3 5.5l7 7Z" />
-    </svg>
-  );
-}
-
-function TreasureChestIcon({
-  claimed = false,
-  className = 'w-14 h-16',
-}: {
-  claimed?: boolean;
-  className?: string;
-}) {
-  return (
-    <img
-      src={claimed ? '/chest-open.png' : '/chest-closed.png'}
-      alt={claimed ? 'Hòm kho báu đã mở' : 'Hòm kho báu chưa mở'}
-      className={`object-contain select-none pointer-events-none drop-shadow-md transition-transform duration-300 group-hover:scale-110 ${className}`}
-      draggable={false}
-    />
-  );
-}
-
-type LearningNode = {
-  id: string;
-  title: string;
-  subtitle: string;
-  icon: string;
-  guidebook: { title: string; tips: string[] };
-  lessons: string[];
-};
-
-const learningNodes: LearningNode[] = [
-  {
-    id: 'communication',
-    title: 'Nghệ thuật đặt câu hỏi',
-    subtitle: 'Làm chủ các dạng câu hỏi mở, đóng, làm rõ và đào sâu',
-    icon: 'chat_bubble',
-    guidebook: {
-      title: 'Cẩm nang: Nghệ thuật đặt câu hỏi',
-      tips: [
-        'Câu hỏi mở (Ai, Cái gì, Thế nào): Mở rộng tư duy và thu thập góc nhìn đa chiều.',
-        'Câu hỏi đóng (Có/Không): Dùng để xác nhận thông tin chốt hạ hoặc kiểm tra nhanh.',
-        'Câu hỏi làm rõ: Xác định tiêu chí kết quả, thời hạn, phạm vi công việc tránh hiểu lầm.',
-        'Kỹ thuật 5 Whys: Hỏi "Tại sao?" liên tiếp để truy vết nguyên nhân cốt lõi của vấn đề.',
-      ],
-    },
-    lessons: [
-      'Câu hỏi mở và câu hỏi đóng',
-      'Câu hỏi làm rõ',
-      'Câu hỏi đào sâu',
-      '5 Whys và câu hỏi Socratic',
-    ],
-  },
-  {
-    id: 'listening',
-    title: 'Lắng nghe chủ động',
-    subtitle: 'Thấu hiểu trọn vẹn thông điệp và cảm xúc của người đối diện',
-    icon: 'headphones',
-    guidebook: {
-      title: 'Cẩm nang: Lắng nghe chủ động',
-      tips: [
-        'Tập trung 100%: Tạm gác điện thoại và suy nghĩ riêng khi người khác đang nói.',
-        'Nhận biết cảm xúc: Chú ý cả ngữ điệu và ngôn ngữ cơ thể.',
-        'Nhắc lại ý chính: Tóm tắt lại để xác nhận bạn đã hiểu đúng ý người nói.',
-      ],
-    },
-    lessons: [
-      'Tập trung vào người nói',
-      'Nhận biết ý chính và cảm xúc',
-      'Đặt câu hỏi để làm rõ',
-      'Phản hồi sau khi lắng nghe',
-    ],
-  },
-  {
-    id: 'feedback',
-    title: 'Phản hồi tích cực',
-    subtitle: 'Nghệ thuật góp ý xây dựng và tiếp nhận phản hồi bình tĩnh',
-    icon: 'thumb_up',
-    guidebook: {
-      title: 'Cẩm nang: Phản hồi tích cực',
-      tips: [
-        'Mô hình SBI: Nêu Bối cảnh (Situation) → Hành vi (Behavior) → Tác động (Impact).',
-        'Góp ý vì sự tiến bộ: Tránh công kích cá nhân, tập trung vào giải pháp.',
-        'Tiếp nhận cởi mở: Lắng nghe góp ý như một món quà phát triển bản thân.',
-      ],
-    },
-    lessons: [
-      'Góp ý cụ thể và tôn trọng',
-      'Tiếp nhận góp ý bình tĩnh',
-      'Phản hồi trong tình huống khó',
-    ],
-  },
-  {
-    id: 'presentation',
-    title: 'Thuyết trình cuốn hút',
-    subtitle: 'Bố cục bài nói mạch lạc và phong thái tự tin trước đám đông',
-    icon: 'slideshow',
-    guidebook: {
-      title: 'Cẩm nang: Thuyết trình cuốn hút',
-      tips: [
-        'Mở đầu gây ấn tượng: Đặt câu hỏi, kể câu chuyện hoặc dẫn chứng con số bất ngờ.',
-        'Cấu trúc 3 phần: Mở bài thu hút - Thân bài cô đọng - Kết bài kêu gọi hành động.',
-        'Tương tác ánh mắt: Duy trì eye-contact tự nhiên với khán giả.',
-      ],
-    },
-    lessons: [
-      'Xây dựng bố cục bài nói',
-      'Mở đầu thu hút người nghe',
-      'Trình bày luận điểm thuyết phục',
-      'Kết thúc và trả lời câu hỏi',
-    ],
-  },
-  {
-    id: 'interview',
-    title: 'Phỏng vấn chuyên nghiệp',
-    subtitle: 'Chinh phục nhà tuyển dụng với phương pháp trả lời STAR',
-    icon: 'work',
-    guidebook: {
-      title: 'Cẩm nang: Phỏng vấn chuyên nghiệp',
-      tips: [
-        'Mô hình STAR: Tình huống (Situation) - Nhiệm vụ (Task) - Hành động (Action) - Kết quả (Result).',
-        'Giới thiệu bản thân trong 60 giây: Ngắn gọn, tập trung vào điểm mạnh và giá trị mang lại.',
-        'Đặt câu hỏi ngược: Thể hiện sự chủ động và đam mê với công việc.',
-      ],
-    },
-    lessons: [
-      'Giới thiệu bản thân ngắn gọn',
-      'Trả lời câu hỏi theo phương pháp STAR',
-      'Xử lý câu hỏi tình huống',
-      'Đặt câu hỏi cho nhà tuyển dụng',
-    ],
-  },
-];
-
-interface LearningSection {
-  label: string;
-  nodeId: string;
-  status: 'completed' | 'current' | 'locked';
-  progress: number;
-  total: number;
-  progressPercent?: number;
-  quote?: string;
-}
-
-const learningSections: LearningSection[] = [
-  { label: 'Phần 1', nodeId: 'communication', status: 'completed', progress: 4, total: 4, quote: 'Khởi đầu làm chủ kỹ năng mềm' },
-  { label: 'Phần 2', nodeId: 'listening', status: 'completed', progress: 4, total: 4, quote: 'Thấu hiểu đối phương sâu sắc' },
-  { label: 'Phần 3', nodeId: 'feedback', status: 'completed', progress: 3, total: 3, quote: 'Góp ý tích cực và chân thành' },
-  { label: 'Phần 4', nodeId: 'presentation', status: 'current', progress: 1, total: 4, progressPercent: 2, quote: 'I can speak with people a little.' },
-  { label: 'Phần 5', nodeId: 'interview', status: 'locked', progress: 0, total: 4, quote: 'Chinh phục phỏng vấn chuyên nghiệp' },
-];
 
 export const LearningPathPage: React.FC = () => {
   const navigate = useNavigate();
-  const learningPathsQuery = useLearningPaths();
-  const configuredPath = learningPathsQuery.data?.find((path) => path.slug === 'nghe-thuat-dat-cau-hoi') ?? learningPathsQuery.data?.[0];
-  const configuredLessons = configuredPath?.lessons.slice().sort((a, b) => a.sort_order - b.sort_order).map((lesson) => lesson.title) ?? [];
+  const {
+    data: pathData,
+    isLoading: isPathLoading,
+    isError: isPathError,
+    error: pathError,
+    refetch: refetchPath,
+  } = useLearningPathQuery('ky-nang-mem');
 
-  const [selectedId, setSelectedId] = useState('communication');
-  const [selectedLessonIndex, setSelectedLessonIndex] = useState<number | null>(0);
-  const [showGuidebook, setShowGuidebook] = useState(false);
-  const [chestClaimed, setChestClaimed] = useState(false);
-  const [viewMode, setViewMode] = useState<'path' | 'sections'>('path');
+  const [selectedSectionId, setSelectedSectionId] = useState<number | null>(null);
+  const [showLessons, setShowLessons] = useState(false);
+  const [selectedLessonIndex, setSelectedLessonIndex] = useState(0);
 
-  const [lives, setLives] = useState<LearningLives>(() => readLearningLives());
-  const [currentTime, setCurrentTime] = useState(Date.now());
+  const { data: sectionDetail, isLoading: isSectionLoading } = useSectionQuery(
+    selectedSectionId ?? undefined
+  );
 
-  useEffect(() => {
-    if (lives.count > 0 || !lives.refillAt) return;
-    const intervalId = window.setInterval(() => {
-      const now = Date.now();
-      setCurrentTime(now);
-      if (lives.refillAt && now >= lives.refillAt) {
-        setLives(readLearningLives(now));
-      }
-    }, 1000);
-    return () => window.clearInterval(intervalId);
-  }, [lives.count, lives.refillAt]);
+  const sections = pathData?.sections || [];
+  const activeSectionSummary: SectionSummary | undefined =
+    sections.find((s) => s.id === selectedSectionId) || sections[0];
 
-  const baseNode = learningNodes.find((node) => node.id === selectedId) ?? learningNodes[0];
-  const selectedNode = baseNode.id === 'communication' && configuredLessons.length > 0
-    ? { ...baseNode, title: configuredPath?.title ?? baseNode.title, subtitle: configuredPath?.subtitle ?? baseNode.subtitle, lessons: configuredLessons }
-    : baseNode;
+  const lessons = sectionDetail?.lessons || [];
+  const lessonCount = lessons.length;
+  const currentLessonIndex = lessons.findIndex((l) => l.status === 'unlocked' || l.status === 'in_progress');
+  const effectiveCurrentIndex = currentLessonIndex === -1 ? (activeSectionSummary?.status === 'complete' ? lessonCount : 0) : currentLessonIndex;
 
-  const selectedSectionIndex = learningSections.findIndex((section) => section.nodeId === selectedId);
-  const selectedSection = learningSections[selectedSectionIndex >= 0 ? selectedSectionIndex : 0];
+  const lessonMapHeight = Math.max(500, 130 + lessonCount * 132);
+  const lessonPath = buildLessonPath(lessonCount);
+  const lessonProgressPath = buildLessonPath(
+    activeSectionSummary?.status === 'complete' ? lessonCount : Math.max(0, effectiveCurrentIndex + 1)
+  );
 
-  const currentLessonIndex =
-    selectedSection.status === 'locked'
-      ? 0
-      : selectedSection.status === 'completed'
-      ? selectedNode.lessons.length
-      : selectedSection.progress ?? 1;
-
-  const handleStartLesson = (targetLesson?: string) => {
-    const lesson = targetLesson || (selectedLessonIndex !== null ? selectedNode.lessons[selectedLessonIndex] : selectedNode.lessons[0]) || '';
-    navigate(`/lesson?topic=${encodeURIComponent(selectedNode.title)}&lesson=${encodeURIComponent(lesson)}`);
+  const handleOpenSection = (section: SectionSummary) => {
+    setSelectedSectionId(section.id);
+    setSelectedLessonIndex(0);
+    setShowLessons(true);
   };
 
-  // Build Duolingo wave steps (lessons + milestone chest at middle + trophy at end)
-  type PathItem =
-    | { type: 'lesson'; index: number; title: string; complete: boolean; current: boolean; locked: boolean }
-    | { type: 'chest'; index: number; title: string; claimed: boolean }
-    | { type: 'trophy'; index: number; title: string };
-
-  const pathItems: PathItem[] = [];
-  selectedNode.lessons.forEach((lesson, index) => {
-    const complete = index < currentLessonIndex;
-    const current = index === currentLessonIndex;
-    const locked = index > currentLessonIndex;
-    pathItems.push({ type: 'lesson', index, title: lesson, complete, current, locked });
-    // Insert milestone chest after 2nd lesson
-    if (index === 1) {
-      pathItems.push({ type: 'chest', index: 99, title: 'Hòm kho báu +15 KN', claimed: chestClaimed });
-    }
-  });
-  pathItems.push({ type: 'trophy', index: 100, title: 'Vượt cửa kỹ năng' });
-
-  // Duolingo serpentine offset pattern
-  const cycle = [0, -48, -78, -48, 0, 48, 78, 48];
-  const coordinates = pathItems.map((_, i) => ({
-    x: 220 + cycle[i % cycle.length],
-    y: 80 + i * 115,
-  }));
-
-  const mapHeight = coordinates[coordinates.length - 1].y + 140;
+  const handleStartLesson = (lessonId: number) => {
+    navigate(`/learning/lesson/${lessonId}`);
+  };
 
   return (
-    <StudentPageLayout active="/learning-path" title="Lộ trình học" maxWidth="max-w-[1400px]" bgClassName="bg-white">
-      <div className="grid items-start gap-8 lg:grid-cols-[minmax(0,1fr)_360px]">
-        {/* Main Column: either Sections List view (Image 3) or Snake Path view */}
-        <main className="flex flex-col items-center w-full">
-          {viewMode === 'sections' ? (
-            <div className="w-full max-w-[580px] flex flex-col animate-in fade-in duration-200">
-              {/* Header: ← Trở về */}
-              <button
-                type="button"
-                onClick={() => setViewMode('path')}
-                className="group inline-flex items-center gap-2 text-sm sm:text-base font-extrabold text-slate-400 hover:text-slate-600 transition-colors cursor-pointer py-1 self-start"
-              >
-                <Icon name="arrow_back" className="text-lg transition-transform group-hover:-translate-x-0.5" />
-                <span>Trở về</span>
-              </button>
-              <div className="w-full border-b border-slate-200/80 mt-2 mb-5" />
-
-              {/* Sections list */}
-              <div className="space-y-3.5">
-                {learningSections.map((sec) => {
-                  const node = learningNodes.find((n) => n.id === sec.nodeId)!;
-                  const isCompleted = sec.status === 'completed';
-                  const isCurrent = sec.status === 'current';
-
-                  if (isCurrent) {
-                    const pct = sec.progressPercent ?? Math.round((sec.progress / sec.total) * 100);
-                    return (
-                      <div
-                        key={sec.nodeId}
-                        className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 rounded-3xl border-2 border-sky-200 bg-[#ddf4ff] p-5 sm:p-6 shadow-xs"
-                      >
-                        <div>
-                          <h3 className="text-lg sm:text-xl font-black text-[#213a61]">
-                            {sec.label}
-                          </h3>
-                          <p className="text-xs font-bold text-sky-800 mt-0.5">
-                            {node?.title}
-                          </p>
-
-                          {/* Progress bar with trophy */}
-                          <div className="mt-3 flex items-center gap-2">
-                            <div className="relative flex h-4 w-36 sm:w-48 items-center rounded-full bg-white p-0.5 shadow-inner border border-sky-100">
-                              <div
-                                className="h-full rounded-full bg-[#58cc02] transition-all"
-                                style={{ width: `${Math.max(8, pct)}%` }}
-                              />
-                              <span className="absolute inset-0 flex items-center justify-center text-[10px] font-black text-slate-500">
-                                {pct}%
-                              </span>
-                            </div>
-                            <div className="flex h-7 w-7 items-center justify-center text-[#58cc02]">
-                              <Icon name="emoji_events" className="text-xl text-[#58cc02]" />
-                            </div>
-                          </div>
-                        </div>
-
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setSelectedId(sec.nodeId);
-                            setSelectedLessonIndex(0);
-                            setViewMode('path');
-                          }}
-                          className="rounded-2xl bg-[#1cb0f6] px-8 py-3 text-center text-xs sm:text-sm font-black uppercase tracking-wider text-white shadow-[0_4px_0_#1899d6] transition-all hover:bg-[#1899d6] active:translate-y-1 active:shadow-none cursor-pointer shrink-0"
-                        >
-                          TIẾP TỤC
-                        </button>
-                      </div>
-                    );
-                  }
-
-                  if (isCompleted) {
-                    return (
-                      <div
-                        key={sec.nodeId}
-                        className="flex items-center justify-between rounded-3xl border-2 border-slate-200/80 bg-white p-5 sm:p-6 shadow-xs transition-all hover:border-slate-300"
-                      >
-                        <div>
-                          <h3 className="text-base sm:text-lg font-black text-[#213a61]">
-                            {sec.label}
-                          </h3>
-                          <div className="mt-1 flex items-center gap-1.5 text-xs font-black uppercase tracking-wider text-[#58cc02]">
-                            <div className="flex h-4 w-4 items-center justify-center rounded-full bg-[#58cc02] text-white">
-                              <Icon name="check" className="text-[10px] font-black stroke-[3]" />
-                            </div>
-                            <span>HOÀN THÀNH!</span>
-                          </div>
-                        </div>
-
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setSelectedId(sec.nodeId);
-                            setSelectedLessonIndex(0);
-                            setViewMode('path');
-                          }}
-                          className="rounded-2xl border-2 border-slate-200 bg-white px-5 py-2.5 text-xs sm:text-sm font-black uppercase tracking-wider text-[#1cb0f6] shadow-[0_2px_0_#e2e8f0] transition-all hover:bg-slate-50 hover:border-slate-300 active:translate-y-0.5 active:shadow-none cursor-pointer"
-                        >
-                          ÔN TẬP
-                        </button>
-                      </div>
-                    );
-                  }
-
-                  return (
-                    <div
-                      key={sec.nodeId}
-                      className="flex items-center justify-between rounded-3xl border-2 border-slate-100 bg-slate-50/60 p-5 opacity-60"
-                    >
-                      <div>
-                        <h3 className="text-base sm:text-lg font-black text-slate-400">
-                          {sec.label}
-                        </h3>
-                        <p className="text-xs font-medium text-slate-400">
-                          {node?.title}
-                        </p>
-                        <div className="mt-1 flex items-center gap-1.5 text-xs font-black uppercase tracking-wider text-slate-400">
-                          <Icon name="lock" className="text-xs" />
-                          <span>CHƯA MỞ KHÓA</span>
-                        </div>
-                      </div>
-
-                      <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-slate-200 text-slate-400">
-                        <Icon name="lock" className="text-lg" />
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-            </div>
-          ) : (
-            <>
-              {/* Duolingo Sticky Unit Header Banner (Image 2) */}
-              <div className="sticky top-[68px] z-30 w-full max-w-[580px] bg-white pt-2 pb-3 mb-6">
-                <div className="w-full rounded-2xl bg-[#1cb0f6] px-5 sm:px-6 py-4 text-white shadow-md border-b-[5px] border-[#1899d6]">
-                  <div className="flex items-center justify-between gap-4">
-                    <div className="min-w-0 flex-1">
-                      <div className="flex items-center gap-2">
-                        <button
-                          type="button"
-                          onClick={() => setViewMode('sections')}
-                          className="flex h-7 w-7 items-center justify-center rounded-lg bg-white/20 text-white transition-all hover:bg-white/30 active:scale-95 cursor-pointer shrink-0 mr-0.5"
-                          title="Quay lại danh sách lộ trình"
-                          aria-label="Quay lại danh sách lộ trình"
-                        >
-                          <Icon name="arrow_back" className="text-base font-black" />
-                        </button>
-                        <span className="text-xs font-black uppercase tracking-wider text-sky-100">
-                          {selectedSection.label} · CỬA {selectedSectionIndex + 1}
-                        </span>
-                        <span className="rounded-full bg-white/20 px-2 py-0.5 text-[10px] font-extrabold text-white">
-                          {selectedNode.lessons.length} BÀI HỌC
-                        </span>
-                      </div>
-                      <h2 className="mt-1 text-xl sm:text-2xl font-black tracking-tight text-white truncate">
-                        {selectedNode.title}
-                      </h2>
-                      <p className="mt-0.5 text-xs sm:text-sm font-semibold text-sky-100 truncate">
-                        Kỹ năng {selectedSectionIndex + 1}
-                      </p>
-                    </div>
-
-                    <button
-                      type="button"
-                      onClick={() => setShowGuidebook(true)}
-                      className="flex shrink-0 items-center gap-2 rounded-2xl border-2 border-white/40 bg-white/10 px-4 py-2.5 text-xs font-black uppercase tracking-wider text-white shadow-sm transition-all hover:bg-white/20 active:translate-y-0.5 cursor-pointer"
-                    >
-                      <Icon name="help_outline" className="text-xl" />
-                      <span>HƯỚNG DẪN</span>
-                    </button>
-                  </div>
-                </div>
-              </div>
-
-          {/* Interactive Path Container */}
-          <div className="relative w-full max-w-[680px] overflow-visible pb-24" style={{ minHeight: mapHeight }}>
-            {/* Nodes */}
-            {pathItems.map((item, i) => {
-              const coord = coordinates[i];
-              if (item.type === 'chest') {
-                return (
-                  <div
-                    key="chest"
-                    className="absolute -translate-x-1/2 -translate-y-1/2 z-10"
-                    style={{ left: `${(coord.x / 440) * 100}%`, top: `${coord.y}px` }}
-                  >
-                    <button
-                      type="button"
-                      onClick={() => setChestClaimed((prev) => !prev)}
-                      aria-label={chestClaimed ? 'Hòm kho báu đã nhận (+15 KN)' : 'Mở hòm kho báu thưởng (+15 KN)'}
-                      className="group relative flex flex-col items-center justify-center transition-transform hover:scale-110 active:scale-95 cursor-pointer focus:outline-none"
-                    >
-                      <TreasureChestIcon claimed={chestClaimed} className="w-16 h-18" />
-                      {!chestClaimed ? (
-                        <span className="absolute -top-1 -right-1 flex h-5 w-5 items-center justify-center rounded-full bg-rose-500 text-[10px] font-black text-white shadow-md animate-bounce">
-                          !
-                        </span>
-                      ) : (
-                        <span className="absolute -bottom-2.5 rounded-full bg-amber-500/95 px-2 py-0.5 text-[9px] font-black uppercase tracking-wider text-white shadow-sm whitespace-nowrap">
-                          +15 KN
-                        </span>
-                      )}
-                    </button>
-                  </div>
-                );
-              }
-
-              if (item.type === 'trophy') {
-                return (
-                  <div
-                    key="trophy"
-                    className="absolute -translate-x-1/2 -translate-y-1/2 z-10"
-                    style={{ left: `${(coord.x / 440) * 100}%`, top: `${coord.y}px` }}
-                  >
-                    <div className="flex h-16 w-16 items-center justify-center rounded-full bg-slate-100 border-4 border-slate-200 text-slate-400 shadow-md">
-                      <Icon name="emoji_events" className="text-3xl text-amber-500" />
-                    </div>
-                  </div>
-                );
-              }
-
-              const { index, title, complete, current, locked } = item;
-              const selected = selectedLessonIndex === index;
-
-              return (
-                <div
-                  key={title}
-                  className="absolute -translate-x-1/2 -translate-y-1/2"
-                  style={{
-                    left: `${(coord.x / 440) * 100}%`,
-                    top: `${coord.y}px`,
-                    zIndex: selected ? 20 : 10,
-                  }}
-                >
-                  {/* Floating 'BẮT ĐẦU' speech bubble indicator when current and not open */}
-                  {current && !selected && (
-                    <div className="pointer-events-none absolute -top-11 left-1/2 -translate-x-1/2 z-20 animate-bounce">
-                      <div className="relative rounded-2xl border-2 border-slate-200/90 bg-white px-3.5 py-1 text-xs font-black uppercase tracking-wider text-[#1cb0f6] shadow-md whitespace-nowrap">
-                        BẮT ĐẦU
-                        <div className="absolute -bottom-1.5 left-1/2 -translate-x-1/2 h-0 w-0 border-x-4 border-x-transparent border-t-4 border-t-white" />
-                      </div>
-                    </div>
-                  )}
-
-                  {/* Circular 3D Node Button with Outer Ring */}
-                  <div
-                    className={`relative flex items-center justify-center rounded-full p-2.5 transition-all duration-200 ${
-                      selected
-                        ? 'bg-sky-100 ring-4 ring-[#1cb0f6]/40 scale-105'
-                        : ''
-                    }`}
-                  >
-                    {/* Active Donut Progress Ring */}
-                    {current && (
-                      <svg className="absolute -inset-2.5 h-[96px] w-[96px] -rotate-90 pointer-events-none">
-                        <circle cx="48" cy="48" r="41" stroke="#e5e5e5" strokeWidth="6" fill="none" />
-                        <circle
-                          cx="48"
-                          cy="48"
-                          r="41"
-                          stroke="#1cb0f6"
-                          strokeWidth="6"
-                          fill="none"
-                          strokeDasharray="257"
-                          strokeDashoffset="85"
-                          strokeLinecap="round"
-                        />
-                      </svg>
-                    )}
-
-                    <button
-                      type="button"
-                      disabled={locked}
-                      onClick={() => setSelectedLessonIndex(selected ? null : index)}
-                      aria-pressed={selected}
-                      aria-label={`${title}${locked ? ', chưa mở khóa' : ''}`}
-                      className={`relative flex h-[72px] w-[72px] items-center justify-center rounded-full text-white transition-all select-none ${
-                        locked
-                          ? 'bg-[#e5e5e5] border-b-[8px] border-[#afafaf] text-slate-400 cursor-not-allowed'
-                          : 'bg-[#1cb0f6] border-b-[8px] border-[#1899d6] shadow-[0_6px_14px_rgba(28,176,246,0.35)] hover:brightness-105 active:translate-y-1.5 active:border-b-[2px] active:shadow-none cursor-pointer'
-                      }`}
-                    >
-                      {/* 3D Gloss Highlight at top */}
-                      {!locked && (
-                        <div className="pointer-events-none absolute top-1.5 left-4 right-4 h-3 rounded-full bg-white/25" />
-                      )}
-
-                      {locked ? (
-                        <Icon name="lock" className="text-2xl text-slate-400" />
-                      ) : current ? (
-                        <img
-                          src={dumbbellIcon}
-                          alt="Luyện tập"
-                          className="w-10 h-8 object-contain pointer-events-none select-none drop-shadow-xs"
-                        />
-                      ) : (
-                        <img
-                          src={bookIcon}
-                          alt="Bài học"
-                          className="w-10 h-8 object-contain pointer-events-none select-none drop-shadow-xs"
-                        />
-                      )}
-                    </button>
-                  </div>
-
-                  {/* Duolingo Speech Bubble Popup */}
-                  {selected && !locked && (
-                    <div className="absolute left-1/2 top-full mt-3.5 -translate-x-1/2 w-[280px] sm:w-[300px] z-20 animate-in fade-in zoom-in-95 duration-150">
-                      {/* Upward notch arrow */}
-                      <div
-                        className="absolute -top-2 left-1/2 -translate-x-1/2 h-0 w-0 border-x-[10px] border-x-transparent border-b-[10px] border-b-[#1cb0f6]"
-                        aria-hidden="true"
-                      />
-
-                      {/* Card Body in Duolingo Blue */}
-                      <div className="rounded-[22px] bg-[#1cb0f6] p-4.5 text-white shadow-2xl shadow-sky-950/25 border border-sky-400/40">
-                        <div className="flex items-center justify-between">
-                          <span className="text-[11px] font-extrabold uppercase tracking-wider text-sky-100">
-                            CỬA {selectedSectionIndex + 1} · BÀI {index + 1}
-                          </span>
-                          <span className="rounded-full bg-white/20 px-2 py-0.5 text-[10px] font-extrabold text-white">
-                            +10 KN
-                          </span>
-                        </div>
-                        <h4 className="mt-1.5 text-base font-black text-white leading-snug tracking-tight">
-                          {title}
-                        </h4>
-                        <p className="mt-1 text-xs font-semibold text-sky-100">
-                          Bài học {index + 1} trên {selectedNode.lessons.length}
-                        </p>
-                        <button
-                          type="button"
-                          onClick={() => handleStartLesson(title)}
-                          className="mt-4 flex w-full items-center justify-center rounded-2xl bg-white py-3 px-4 text-center text-xs sm:text-sm font-black uppercase tracking-wider text-[#1cb0f6] shadow-[0_4px_0_#1899d6] transition-all hover:bg-sky-50 active:translate-y-1 active:shadow-none cursor-pointer"
-                        >
-                          {complete ? 'ÔN TẬP +10 KN' : 'BẮT ĐẦU +10 KN'}
-                        </button>
-                      </div>
-                    </div>
-                  )}
-                </div>
-              );
-            })}
+    <StudentPageLayout active="/learning-path" title="Lộ trình học" maxWidth="max-w-[1420px]">
+      {/* Top Banner */}
+      <section className="relative overflow-hidden rounded-[24px] bg-gradient-to-r from-blue-700 via-blue-600 to-sky-500 p-5 text-white shadow-lg shadow-blue-900/10 sm:p-7">
+        <div
+          aria-hidden="true"
+          className="absolute -right-10 -top-24 h-64 w-64 rounded-full border-[30px] border-white/10"
+        />
+        <div
+          aria-hidden="true"
+          className="absolute -bottom-28 right-1/3 h-48 w-48 rounded-full border-[24px] border-white/10"
+        />
+        <div className="relative flex flex-wrap items-center justify-between gap-4">
+          <div>
+            <p className="text-[11px] font-bold uppercase tracking-[.16em] text-blue-100">
+              LỘ TRÌNH KỸ NĂNG MỀM
+            </p>
+            <h2 className="mt-1 text-xl font-extrabold sm:text-2xl">
+              Mỗi bước nhỏ, thêm một kỹ năng mới
+            </h2>
+            <p className="mt-1.5 max-w-2xl text-xs leading-relaxed text-blue-50 sm:text-sm">
+              Mỗi phần gồm chuỗi bài học lý thuyết, trắc nghiệm và thực hành viết giúp bạn tự tin hơn.
+            </p>
           </div>
-        </>
-      )}
-    </main>
-
-        {/* Right Sidebar: Duolingo Stats, Quests & Tournament */}
-        <aside className="space-y-4 lg:sticky lg:top-4">
-          {/* Top Bar Stats */}
-          <div className="grid grid-cols-3 gap-2">
-            <div aria-label="Chuỗi 7 ngày" className="flex items-center justify-center gap-1.5 rounded-2xl border-2 border-orange-100 bg-white px-2 py-3 shadow-sm">
-              <StreakFlameIcon className="text-xl" />
-              <span className="text-xs font-black text-slate-700">7 ngày</span>
+          <div className="flex items-center gap-3 rounded-2xl border border-white/20 bg-white/10 px-4 py-3 backdrop-blur-sm">
+            <div className="flex h-12 w-12 items-center justify-center rounded-full bg-white/15">
+              <Icon name="route" className="text-2xl" />
             </div>
-            <div aria-label="1,250 KN" className="flex items-center justify-center gap-1.5 rounded-2xl border-2 border-sky-100 bg-white px-2 py-3 shadow-sm">
-              <img src="/quest-xp.png" alt="KN" className="h-5 w-5 object-contain drop-shadow-xs" draggable={false} />
-              <span className="text-xs font-black text-slate-700">1,250 KN</span>
+            <div>
+              <p className="text-[10px] font-semibold text-blue-100">TIẾN ĐỘ HIỆN TẠI</p>
+              <p className="text-lg font-extrabold">
+                {pathData?.summary?.completed_sections ?? 0} / {pathData?.summary?.total_sections ?? 7}{' '}
+                <span className="text-xs font-semibold text-blue-100">phần</span>
+              </p>
             </div>
-            <div
-              aria-label={`${lives.count} tim`}
-              className="flex flex-col items-center justify-center rounded-2xl border-2 border-sky-100 bg-white px-2 py-2 shadow-sm"
-            >
-              <div className="flex items-center gap-1">
-                <HeartIcon active={lives.count > 0} />
-                <span className="text-xs font-black text-slate-700 tabular-nums">
-                  {lives.count}/{MAX_LEARNING_LIVES}
-                </span>
-              </div>
-              {lives.count === 0 && lives.refillAt && (
-                <span className="mt-0.5 text-[9px] font-semibold tabular-nums text-[#1cb0f6]">
-                  {formatRefillTimer(lives.refillAt - currentTime)}
-                </span>
-              )}
-            </div>
-          </div>
-
-          {/* Tournament / Leaderboards Card */}
-          <section className="rounded-3xl border-2 border-slate-200 bg-white p-5 shadow-sm">
-            <div className="flex items-center justify-between gap-2">
-              <h2 className="text-sm font-black text-[#213a61]">Giải đấu {CURRENT_TOURNAMENT.tier}</h2>
-              <Link to="/achievements" className="text-[11px] font-black text-[#1cb0f6] hover:underline">
-                BẢNG XẾP HẠNG
-              </Link>
-            </div>
-            <div className="mt-4 flex items-center gap-3">
-              <span
-                role="img"
-                aria-label={`Huy hiệu ${CURRENT_TOURNAMENT.tier}`}
-                className="h-14 w-14 shrink-0 bg-no-repeat"
-                style={{
-                  backgroundImage: "url('/achievement-tiers.png')",
-                  backgroundSize: '500% 200%',
-                  backgroundPosition: `${CURRENT_TOURNAMENT.tierColumn * 25}% ${CURRENT_TOURNAMENT.tierRow * 100}%`,
-                }}
-              />
-              <div>
-                <p className="text-xs font-extrabold text-[#213a61]">Bạn đang ở vị trí thứ 9</p>
-                <p className="mt-0.5 text-xs text-emerald-600 font-bold">Thuộc nhóm thăng hạng!</p>
-              </div>
-            </div>
-          </section>
-
-          {/* Daily Quests Card */}
-          <section className="rounded-3xl border-2 border-slate-200 bg-white p-5 shadow-sm">
-            <div className="flex items-center justify-between gap-2">
-              <h2 className="text-sm font-black text-[#213a61]">Nhiệm vụ hàng ngày</h2>
-              <Icon name="military_tech" className="text-xl text-amber-500" />
-            </div>
-            <div className="mt-4 space-y-4">
-              {[
-                { image: '/quest-xp.png', title: 'Kiếm 30 KN hôm nay', value: 20, total: 30 },
-                { icon: 'task_alt', title: 'Hoàn thành 1 bài luyện tập', value: 1, total: 1, color: 'text-emerald-500' },
-                { image: '/quest-timer.png', title: 'Luyện 5 phút kỹ năng mềm', value: 3, total: 5 },
-              ].map((task) => {
-                const isComplete = task.value >= task.total;
-                return (
-                  <div key={task.title} className="flex items-center gap-3">
-                    {task.image ? (
-                      <img
-                        src={task.image}
-                        alt={task.title}
-                        className="h-7 w-7 shrink-0 object-contain drop-shadow-xs"
-                        draggable={false}
-                      />
-                    ) : (
-                      <Icon name={task.icon!} className={`shrink-0 text-2xl ${task.color}`} />
-                    )}
-                    <div className="min-w-0 flex-1">
-                      <p className="text-xs font-extrabold text-slate-700 leading-tight">{task.title}</p>
-                      <div className="mt-1.5 flex items-center gap-2">
-                        <Progress value={Math.min(100, (task.value / task.total) * 100)} className="flex-1 h-2.5 bg-slate-100" />
-                        <span className="shrink-0 text-[10px] font-black text-slate-500">{task.value}/{task.total}</span>
-                      </div>
-                    </div>
-                    <img
-                      src={isComplete ? '/chest-open.png' : '/chest-closed.png'}
-                      alt={isComplete ? 'Đã nhận thưởng' : 'Chưa nhận'}
-                      className="h-6 w-auto shrink-0 object-contain drop-shadow-xs"
-                      draggable={false}
-                    />
-                  </div>
-                );
-              })}
-            </div>
-          </section>
-        </aside>
-      </div>
-
-      {/* Guidebook Modal (Hướng dẫn lý thuyết) */}
-      {showGuidebook && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 backdrop-blur-xs animate-in fade-in duration-200">
-          <div className="w-full max-w-lg rounded-3xl bg-white p-6 shadow-2xl border-2 border-slate-100 animate-in zoom-in-95 duration-200">
-            <div className="flex items-center justify-between pb-4 border-b border-slate-100">
-              <div className="flex items-center gap-2">
-                <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-sky-100 text-[#1cb0f6]">
-                  <Icon name="menu_book" className="text-2xl" />
-                </div>
-                <div>
-                  <span className="text-[10px] font-black uppercase tracking-wider text-slate-400">HƯỚNG DẪN BÀI HỌC</span>
-                  <h3 className="text-base font-black text-[#213a61]">{selectedNode.title}</h3>
-                </div>
-              </div>
-              <button
-                type="button"
-                onClick={() => setShowGuidebook(false)}
-                className="text-2xl font-bold text-slate-400 hover:text-slate-600 cursor-pointer"
-              >
-                ×
-              </button>
-            </div>
-
-            <div className="mt-4 space-y-3">
-              {selectedNode.guidebook.tips.map((tip, idx) => (
-                <div key={idx} className="flex items-start gap-3 rounded-2xl bg-sky-50/60 p-3.5 border border-sky-100">
-                  <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-[#1cb0f6] text-xs font-black text-white">
-                    {idx + 1}
-                  </span>
-                  <p className="text-xs sm:text-sm font-semibold leading-relaxed text-slate-700">{tip}</p>
-                </div>
-              ))}
-            </div>
-
-            <button
-              type="button"
-              onClick={() => setShowGuidebook(false)}
-              className="mt-6 w-full rounded-2xl bg-[#1cb0f6] py-3 text-center text-xs sm:text-sm font-black uppercase tracking-wider text-white shadow-[0_4px_0_#1899d6] transition-all hover:bg-[#1899d6] active:translate-y-1 active:shadow-none cursor-pointer"
-            >
-              ĐÃ HIỂU
-            </button>
           </div>
         </div>
-      )}
+      </section>
+
+      {/* Main Roadmap Area */}
+      <div className="mt-5 grid items-start gap-5 xl:grid-cols-[minmax(0,1fr)_360px]">
+        <section className="overflow-hidden rounded-[22px] border border-slate-200/80 bg-white p-4 shadow-[0_5px_18px_rgba(26,54,93,.06)] sm:p-5">
+          {isPathLoading ? (
+            <div className="flex h-64 items-center justify-center text-slate-400">
+              <div className="flex items-center gap-3">
+                <div className="h-5 w-5 animate-spin rounded-full border-2 border-blue-600 border-t-transparent" />
+                <span className="text-xs font-semibold">Đang tải lộ trình học...</span>
+              </div>
+            </div>
+          ) : isPathError ? (
+            <div className="flex flex-col items-center justify-center p-8 text-center">
+              <Icon name="error" className="mb-2 text-4xl text-rose-500" />
+              <p className="text-sm font-bold text-slate-700">Không thể tải lộ trình học</p>
+              <p className="mt-1 max-w-md text-xs text-slate-500">
+                {(pathError as Error)?.message || 'Vui lòng kiểm tra lại kết nối mạng hoặc thử lại sau.'}
+              </p>
+              <button
+                type="button"
+                onClick={() => refetchPath()}
+                className="mt-4 rounded-xl bg-blue-600 px-4 py-2 text-xs font-bold text-white transition hover:bg-blue-700"
+              >
+                Thử lại
+              </button>
+            </div>
+          ) : showLessons ? (
+            <>
+              {/* Header inside Section */}
+              <div className="flex flex-wrap items-start justify-between gap-3">
+                <div>
+                  <button
+                    type="button"
+                    onClick={() => setShowLessons(false)}
+                    className="mb-3 inline-flex items-center gap-1 text-xs font-bold text-blue-700 hover:text-blue-900"
+                  >
+                    <Icon name="arrow_back" className="text-sm" />
+                    <span>Tất cả các phần</span>
+                  </button>
+                  <p className="text-[10px] font-bold uppercase tracking-wide text-blue-700">
+                    Phần {activeSectionSummary?.sort_order ?? 1} · {activeSectionSummary?.subtitle}
+                  </p>
+                  <h2 className="mt-1 text-lg font-extrabold text-[#213a61]">
+                    {activeSectionSummary?.title}
+                  </h2>
+                </div>
+                <span className="rounded-full bg-blue-50 px-2.5 py-1 text-[10px] font-bold text-blue-700">
+                  {lessonCount} bài luyện tập
+                </span>
+              </div>
+
+              {/* Lesson Roadmap Map */}
+              {isSectionLoading ? (
+                <div className="flex h-64 items-center justify-center text-slate-400">
+                  <div className="h-5 w-5 animate-spin rounded-full border-2 border-blue-600 border-t-transparent" />
+                </div>
+              ) : (
+                <div
+                  className="mt-4 overflow-hidden rounded-xl bg-[#fbfcff]"
+                  aria-label={`Lộ trình bài luyện tập: ${activeSectionSummary?.title}`}
+                >
+                  <div className="relative mx-auto w-full max-w-[520px]" style={{ height: lessonMapHeight }}>
+                    <svg
+                      aria-hidden="true"
+                      viewBox={`0 0 430 ${lessonMapHeight}`}
+                      preserveAspectRatio="none"
+                      className="pointer-events-none absolute inset-0 h-full w-full"
+                    >
+                      <path
+                        d={lessonPath}
+                        fill="none"
+                        stroke="#e2e8f0"
+                        strokeWidth="16"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                      />
+                      <path
+                        d={lessonProgressPath}
+                        fill="none"
+                        stroke="#3b82f6"
+                        strokeWidth="10"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                      />
+                    </svg>
+
+                    {lessons.map((lesson, index) => {
+                      const complete = lesson.status === 'passed';
+                      const current = lesson.status === 'unlocked' || lesson.status === 'in_progress';
+                      const locked = lesson.status === 'locked';
+
+                      const x = index % 2 === 0 ? 270 : 160;
+                      const y = 65 + index * 132;
+                      const selected = selectedLessonIndex === index;
+                      const labelLeft = x > 215 ? '5%' : '55%';
+                      const startLeft = x > 215 ? '27%' : '51%';
+
+                      return (
+                        <div key={lesson.id}>
+                          {/* Node Button */}
+                          <div
+                            className="absolute z-10 -translate-x-1/2 -translate-y-1/2"
+                            style={{ left: `${(x / 430) * 100}%`, top: `${y}px` }}
+                          >
+                            <button
+                              type="button"
+                              disabled={locked}
+                              onClick={() => setSelectedLessonIndex(index)}
+                              aria-pressed={selected}
+                              aria-label={`${lesson.title}${locked ? ', chưa mở khóa' : ''}`}
+                              className={`relative flex h-12 w-12 items-center justify-center rounded-full border-4 shadow-md transition ${
+                                complete
+                                  ? 'border-white bg-gradient-to-br from-sky-400 to-blue-600 text-white'
+                                  : current
+                                  ? 'border-white bg-blue-700 text-white ring-4 ring-blue-100'
+                                  : 'border-slate-100 bg-slate-200 text-slate-400'
+                              } ${selected ? 'ring-4 ring-blue-100' : ''} ${
+                                locked
+                                  ? 'cursor-not-allowed'
+                                  : 'cursor-pointer hover:-translate-y-0.5 hover:shadow-lg'
+                              }`}
+                            >
+                              <Icon
+                                name={
+                                  complete
+                                    ? 'check'
+                                    : locked
+                                    ? 'lock'
+                                    : lesson.type === 'theory'
+                                    ? 'menu_book'
+                                    : lesson.type === 'quiz'
+                                    ? 'quiz'
+                                    : 'edit_note'
+                                }
+                                className="text-xl"
+                              />
+                            </button>
+                          </div>
+
+                          {/* Node Title Card */}
+                          <div
+                            className="absolute z-10 w-[42%] max-w-[210px] -translate-y-1/2"
+                            style={{ left: labelLeft, top: `${y}px` }}
+                          >
+                            <button
+                              type="button"
+                              disabled={locked}
+                              onClick={() => setSelectedLessonIndex(index)}
+                              className={`w-full rounded-xl border px-3 py-2.5 text-left transition ${
+                                selected
+                                  ? 'border-blue-200 bg-blue-50 shadow-sm'
+                                  : 'border-slate-100 bg-white'
+                              } ${locked ? 'cursor-not-allowed opacity-55' : 'hover:border-blue-200 hover:bg-blue-50'}`}
+                            >
+                              <span className="block text-[10px] font-bold uppercase tracking-wide text-slate-400">
+                                BÀI {index + 1}
+                                {complete
+                                  ? ' · HOÀN THÀNH'
+                                  : current
+                                  ? ' · ĐANG HỌC'
+                                  : ' · CHƯA MỞ'}
+                              </span>
+                              <span className="mt-0.5 block text-xs font-bold leading-snug text-[#213a61]">
+                                {lesson.title}
+                              </span>
+                            </button>
+                          </div>
+
+                          {/* Floating Start/Review Action Button */}
+                          {selected && !locked && (
+                            <div
+                              className="absolute z-20 -translate-y-1/2"
+                              style={{ left: startLeft, top: `${y - 39}px` }}
+                            >
+                              <button
+                                type="button"
+                                onClick={() => handleStartLesson(lesson.id)}
+                                className="inline-flex items-center gap-1 rounded-full border border-blue-100 bg-white px-3.5 py-2 text-[10px] font-extrabold text-blue-700 shadow-lg shadow-blue-900/10 transition hover:bg-blue-50"
+                              >
+                                <Icon name={complete ? 'replay' : 'play_arrow'} className="text-sm" />
+                                <span>{complete ? 'ÔN TẬP' : 'BẮT ĐẦU'}</span>
+                              </button>
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+            </>
+          ) : (
+            <>
+              {/* Section Overview List */}
+              <div className="flex items-start justify-between gap-3">
+                <h2 className="text-lg font-bold text-[#213a61]">Lộ trình học kỹ năng</h2>
+              </div>
+              <div className="mt-4 space-y-3" aria-label="Các phần trong lộ trình">
+                {sections.length === 0 ? (
+                  <div className="py-12 text-center text-slate-400">
+                    <Icon name="school" className="mx-auto mb-2 text-4xl text-slate-300" />
+                    <p className="text-sm font-semibold">Chưa có phần học nào trong lộ trình này.</p>
+                  </div>
+                ) : (
+                  sections.map((section) => {
+                  const locked = section.status === 'locked';
+                  return (
+                    <button
+                      key={section.id}
+                      type="button"
+                      disabled={locked}
+                      onClick={() => handleOpenSection(section)}
+                      className={`w-full rounded-2xl border p-4 text-left transition ${
+                        locked
+                          ? 'cursor-not-allowed border-slate-100 bg-slate-50/70 opacity-65'
+                          : 'border-blue-200 bg-blue-50/40 shadow-sm hover:border-blue-300 hover:bg-blue-50'
+                      }`}
+                    >
+                      <div className="flex items-center gap-3">
+                        <span
+                          className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl ${
+                            locked ? 'bg-slate-200 text-slate-500' : 'bg-blue-700 text-white'
+                          }`}
+                        >
+                          <Icon name={locked ? 'lock' : section.icon} className="text-xl" />
+                        </span>
+                        <span className="min-w-0 flex-1">
+                          <span className="flex flex-wrap items-center gap-2">
+                            <span className="text-[10px] font-bold uppercase tracking-wide text-slate-400">
+                              Phần {section.sort_order} · {section.subtitle}
+                            </span>
+                            <Badge
+                              variant={locked ? 'secondary' : 'default'}
+                              className={`px-2 py-0.5 text-[9px] font-bold ${
+                                locked
+                                  ? 'bg-slate-200 text-slate-500'
+                                  : section.status === 'complete'
+                                  ? 'bg-emerald-100 text-emerald-700'
+                                  : 'bg-blue-100 text-blue-700'
+                              }`}
+                            >
+                              {locked
+                                ? 'CHƯA MỞ KHÓA'
+                                : section.status === 'complete'
+                                ? 'ĐÃ HOÀN THÀNH'
+                                : 'ĐANG HỌC'}
+                            </Badge>
+                          </span>
+                          <span className="mt-1 block truncate text-sm font-extrabold text-[#213a61]">
+                            {section.title}
+                          </span>
+                        </span>
+                        <span
+                          className={`inline-flex shrink-0 items-center gap-1 rounded-lg px-3 py-2 text-[10px] font-extrabold ${
+                            locked ? 'bg-slate-200 text-slate-500' : 'bg-blue-700 text-white'
+                          }`}
+                        >
+                          {locked ? <Icon name="lock" /> : <Icon name="play_arrow" />}
+                          <span>{locked ? 'ĐANG KHÓA' : 'TIẾP TỤC'}</span>
+                        </span>
+                      </div>
+                      {!locked && (
+                        <div className="mt-3 flex items-center gap-3">
+                          <Progress
+                            value={
+                              section.progress.total > 0
+                                ? (section.progress.completed / section.progress.total) * 100
+                                : 0
+                            }
+                            className="flex-1 h-2"
+                          />
+                          <span className="text-[10px] font-bold text-slate-500">
+                            {section.progress.completed}/{section.progress.total} bài
+                          </span>
+                        </div>
+                      )}
+                    </button>
+                  );
+                })
+              )}
+            </div>
+            </>
+          )}
+        </section>
+
+        {/* Sidebar */}
+        <GamificationSidebar />
+      </div>
     </StudentPageLayout>
   );
 };

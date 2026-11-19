@@ -1,148 +1,318 @@
-import type { ReactNode } from 'react';
-import { createBrowserRouter, Navigate, useLocation, type RouteObject } from 'react-router';
+import React, { Suspense, type ReactNode } from 'react';
+import { createBrowserRouter, Navigate, Outlet, useLocation, type RouteObject } from 'react-router';
 import { AuthCallbackPage } from '@/features/auth/pages/AuthCallbackPage';
 import { AuthPage } from '@/features/auth/pages/AuthPage';
 import { ResetPasswordPage } from '@/features/auth/pages/ResetPasswordPage';
-import { AchievementsPage } from '@/features/community/pages/AchievementsPage';
-import { CommunityPage } from '@/features/community/pages/CommunityPage';
-import { HomePage } from '@/features/learning/pages/HomePage';
-import { LearningPathPage } from '@/features/learning/pages/LearningPathPage';
-import { LessonPage } from '@/features/learning/pages/LessonPage';
-import { PresentationReviewPage } from '@/features/presentation/pages/PresentationReviewPage';
-import { PracticeSetupPage } from '@/features/presentation/pages/PracticeSetupPage';
-import { PracticeLivePage } from '@/features/presentation/pages/PracticeLivePage';
 import { useMe } from '@/features/auth/api/auth';
-import { AdminDashboardPage } from '@/features/admin/pages/AdminDashboardPage';
-import { AdminAiResultsPage, AdminAuditLogsPage, AdminFeedbackPage, AdminLearningPathsPage, AdminLessonsPage, AdminNotificationsPage, AdminPresentationsPage, AdminSettingsPage, AdminUsersPage } from '@/features/admin/pages/AdminManagementPages';
+import { RouteErrorBoundary } from '@/components/RouteErrorBoundary';
+import { NotFoundPage } from '@/components/NotFoundPage';
+import { StudentPageLayout } from '@/components/layout/StudentPageLayout';
+import { PageSkeleton } from '@/components/layout/PageSkeleton';
+import { TopProgressBar } from '@/components/layout/TopProgressBar';
 
-function LoadingScreen() {
+export function PageSkeletonView() {
+  const location = useLocation();
   return (
-    <div className="min-h-screen flex items-center justify-center bg-[#f8fafc]">
-      <span className="material-symbols-outlined text-[32px] text-[#1a365d] animate-spin">
-        progress_activity
-      </span>
-    </div>
+    <StudentPageLayout active={location.pathname}>
+      <PageSkeleton />
+    </StudentPageLayout>
   );
 }
 
-function RequireAuth({ children }: { children: ReactNode }) {
+export function RequireAuth({ children }: { children: ReactNode }) {
   const location = useLocation();
   const me = useMe();
 
   if (me.isPending) {
-    return <LoadingScreen />;
+    return <PageSkeletonView />;
   }
 
   if (me.isError || !me.data) {
     return <Navigate to="/" replace state={{ from: location.pathname }} />;
   }
 
-  return <>{children}</>;
+  return (
+    <>
+      <TopProgressBar />
+      {children}
+    </>
+  );
+}
+
+const HomePage = React.lazy(() =>
+  import('@/features/learning/pages/HomePage').then((m) => ({ default: m.HomePage }))
+);
+const LearningPathPage = React.lazy(() =>
+  import('@/features/learning/pages/LearningPathPage').then((m) => ({ default: m.LearningPathPage }))
+);
+const LessonPage = React.lazy(() =>
+  import('@/features/learning/pages/LessonPage').then((m) => ({ default: m.LessonPage }))
+);
+const PracticeSetupPage = React.lazy(() =>
+  import('@/features/presentation/pages/PracticeSetupPage').then((m) => ({
+    default: m.PracticeSetupPage,
+  }))
+);
+const PracticeLivePage = React.lazy(() =>
+  import('@/features/presentation/pages/PracticeLivePage').then((m) => ({
+    default: m.PracticeLivePage,
+  }))
+);
+const AchievementsPage = React.lazy(() =>
+  import('@/features/community/pages/AchievementsPage').then((m) => ({
+    default: m.AchievementsPage,
+  }))
+);
+const CommunityPage = React.lazy(() =>
+  import('@/features/community/pages/CommunityPage').then((m) => ({ default: m.CommunityPage }))
+);
+const ProfilePage = React.lazy(() =>
+  import('@/features/profile/pages/ProfilePage').then((m) => ({ default: m.ProfilePage }))
+);
+const SettingsPage = React.lazy(() =>
+  import('@/features/profile/pages/SettingsPage')
+    .then((m) => ({ default: m.SettingsPage || m.default }))
+    .catch(() =>
+      import('@/features/profile/pages/SettingsPage').then((m) => ({
+        default: m.SettingsPage || m.default,
+      }))
+    )
+);
+const PresentationReviewPage = React.lazy(() =>
+  import('@/features/presentation/pages/PresentationReviewPage').then((m) => ({
+    default: m.PresentationReviewPage,
+  }))
+);
+
+// Admin Pages
+const AdminDashboardPage = React.lazy(() =>
+  import('@/features/admin/pages/AdminDashboardPage').then((m) => ({ default: m.AdminDashboardPage }))
+);
+const AdminUsersPage = React.lazy(() =>
+  import('@/features/admin/pages/AdminManagementPages').then((m) => ({ default: m.AdminUsersPage }))
+);
+const AdminLearningPathsPage = React.lazy(() =>
+  import('@/features/admin/pages/AdminManagementPages').then((m) => ({ default: m.AdminLearningPathsPage }))
+);
+const AdminLessonsPage = React.lazy(() =>
+  import('@/features/admin/pages/AdminManagementPages').then((m) => ({ default: m.AdminLessonsPage }))
+);
+const AdminPresentationsPage = React.lazy(() =>
+  import('@/features/admin/pages/AdminManagementPages').then((m) => ({ default: m.AdminPresentationsPage }))
+);
+const AdminFeedbackPage = React.lazy(() =>
+  import('@/features/admin/pages/AdminManagementPages').then((m) => ({ default: m.AdminFeedbackPage }))
+);
+const AdminAiResultsPage = React.lazy(() =>
+  import('@/features/admin/pages/AdminManagementPages').then((m) => ({ default: m.AdminAiResultsPage }))
+);
+const AdminNotificationsPage = React.lazy(() =>
+  import('@/features/admin/pages/AdminManagementPages').then((m) => ({ default: m.AdminNotificationsPage }))
+);
+const AdminAuditLogsPage = React.lazy(() =>
+  import('@/features/admin/pages/AdminManagementPages').then((m) => ({ default: m.AdminAuditLogsPage }))
+);
+const AdminSettingsPage = React.lazy(() =>
+  import('@/features/admin/pages/AdminManagementPages').then((m) => ({ default: m.AdminSettingsPage }))
+);
+
+function LazyView({ children }: { children: ReactNode }) {
+  return <Suspense fallback={<PageSkeletonView />}>{children}</Suspense>;
 }
 
 export const routes: RouteObject[] = [
-  { path: '/', element: <AuthPage /> },
-  { path: '/auth/callback', element: <AuthCallbackPage /> },
-  { path: '/reset-password', element: <ResetPasswordPage /> },
+  { path: '/', element: <AuthPage />, errorElement: <RouteErrorBoundary /> },
+  { path: '/auth/callback', element: <AuthCallbackPage />, errorElement: <RouteErrorBoundary /> },
+  { path: '/reset-password', element: <ResetPasswordPage />, errorElement: <RouteErrorBoundary /> },
   {
-    path: '/home',
     element: (
       <RequireAuth>
-        <HomePage />
+        <Outlet />
       </RequireAuth>
     ),
-  },
-  {
-    path: '/admin',
-    element: (
-      <RequireAuth>
-        <AdminDashboardPage />
-      </RequireAuth>
-    ),
-  },
-  { path: '/admin/users', element: <RequireAuth><AdminUsersPage /></RequireAuth> },
-  { path: '/admin/learning-paths', element: <RequireAuth><AdminLearningPathsPage /></RequireAuth> },
-  { path: '/admin/lessons', element: <RequireAuth><AdminLessonsPage /></RequireAuth> },
-  { path: '/admin/presentations', element: <RequireAuth><AdminPresentationsPage /></RequireAuth> },
-  { path: '/admin/ai-results', element: <RequireAuth><AdminAiResultsPage /></RequireAuth> },
-  { path: '/admin/feedback', element: <RequireAuth><AdminFeedbackPage /></RequireAuth> },
-  { path: '/admin/notifications', element: <RequireAuth><AdminNotificationsPage /></RequireAuth> },
-  { path: '/admin/audit-logs', element: <RequireAuth><AdminAuditLogsPage /></RequireAuth> },
-  { path: '/admin/settings', element: <RequireAuth><AdminSettingsPage /></RequireAuth> },
-  {
-    path: '/admin/*',
-    element: (
-      <RequireAuth>
-        <AdminDashboardPage />
-      </RequireAuth>
-    ),
-  },
-  {
-    path: '/learning-path',
-    element: (
-      <RequireAuth>
-        <LearningPathPage />
-      </RequireAuth>
-    ),
-  },
-  {
-    path: '/lesson',
-    element: (
-      <RequireAuth>
-        <LessonPage />
-      </RequireAuth>
-    ),
-  },
-  {
-    path: '/practice/setup',
-    element: (
-      <RequireAuth>
-        <PracticeSetupPage />
-      </RequireAuth>
-    ),
-  },
-  {
-    path: '/practice/live',
-    element: (
-      <RequireAuth>
-        <PracticeLivePage />
-      </RequireAuth>
-    ),
-  },
-  {
-    path: '/achievements',
-    element: (
-      <RequireAuth>
-        <AchievementsPage />
-      </RequireAuth>
-    ),
-  },
-  {
-    path: '/community',
-    element: (
-      <RequireAuth>
-        <CommunityPage />
-      </RequireAuth>
-    ),
-  },
-  {
-    path: '/practice/review',
-    element: (
-      <RequireAuth>
-        <PresentationReviewPage />
-      </RequireAuth>
-    ),
-  },
-  {
-    path: '/practice/review/:id',
-    element: (
-      <RequireAuth>
-        <PresentationReviewPage />
-      </RequireAuth>
-    ),
+    errorElement: <RouteErrorBoundary />,
+    children: [
+      {
+        path: '/home',
+        element: (
+          <LazyView>
+            <HomePage />
+          </LazyView>
+        ),
+      },
+      {
+        path: '/learning-path',
+        element: (
+          <LazyView>
+            <LearningPathPage />
+          </LazyView>
+        ),
+      },
+      {
+        path: '/learning/lesson/:id',
+        element: (
+          <LazyView>
+            <LessonPage />
+          </LazyView>
+        ),
+      },
+      {
+        path: '/practice/setup',
+        element: (
+          <LazyView>
+            <PracticeSetupPage />
+          </LazyView>
+        ),
+      },
+      {
+        path: '/practice/live',
+        element: (
+          <LazyView>
+            <PracticeLivePage />
+          </LazyView>
+        ),
+      },
+      {
+        path: '/achievements',
+        element: (
+          <LazyView>
+            <AchievementsPage />
+          </LazyView>
+        ),
+      },
+      {
+        path: '/community',
+        element: (
+          <LazyView>
+            <CommunityPage />
+          </LazyView>
+        ),
+      },
+      {
+        path: '/profile',
+        element: (
+          <LazyView>
+            <ProfilePage />
+          </LazyView>
+        ),
+      },
+      {
+        path: '/profile/:id',
+        element: (
+          <LazyView>
+            <ProfilePage />
+          </LazyView>
+        ),
+      },
+      {
+        path: '/settings',
+        element: (
+          <LazyView>
+            <SettingsPage />
+          </LazyView>
+        ),
+      },
+      {
+        path: '/practice/review',
+        element: (
+          <LazyView>
+            <PresentationReviewPage />
+          </LazyView>
+        ),
+      },
+      {
+        path: '/practice/review/:id',
+        element: (
+          <LazyView>
+            <PresentationReviewPage />
+          </LazyView>
+        ),
+      },
+      // Admin Management Routes
+      {
+        path: '/admin',
+        element: (
+          <LazyView>
+            <AdminDashboardPage />
+          </LazyView>
+        ),
+      },
+      {
+        path: '/admin/users',
+        element: (
+          <LazyView>
+            <AdminUsersPage />
+          </LazyView>
+        ),
+      },
+      {
+        path: '/admin/learning-paths',
+        element: (
+          <LazyView>
+            <AdminLearningPathsPage />
+          </LazyView>
+        ),
+      },
+      {
+        path: '/admin/lessons',
+        element: (
+          <LazyView>
+            <AdminLessonsPage />
+          </LazyView>
+        ),
+      },
+      {
+        path: '/admin/presentations',
+        element: (
+          <LazyView>
+            <AdminPresentationsPage />
+          </LazyView>
+        ),
+      },
+      {
+        path: '/admin/feedback',
+        element: (
+          <LazyView>
+            <AdminFeedbackPage />
+          </LazyView>
+        ),
+      },
+      {
+        path: '/admin/ai-results',
+        element: (
+          <LazyView>
+            <AdminAiResultsPage />
+          </LazyView>
+        ),
+      },
+      {
+        path: '/admin/notifications',
+        element: (
+          <LazyView>
+            <AdminNotificationsPage />
+          </LazyView>
+        ),
+      },
+      {
+        path: '/admin/audit-logs',
+        element: (
+          <LazyView>
+            <AdminAuditLogsPage />
+          </LazyView>
+        ),
+      },
+      {
+        path: '/admin/settings',
+        element: (
+          <LazyView>
+            <AdminSettingsPage />
+          </LazyView>
+        ),
+      },
+    ],
   },
   { path: '/coach', element: <Navigate to="/home" replace /> },
-  { path: '*', element: <Navigate to="/" replace /> },
+  { path: '*', element: <NotFoundPage />, errorElement: <RouteErrorBoundary /> },
 ];
 
 export const router = createBrowserRouter(routes);

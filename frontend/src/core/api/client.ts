@@ -48,8 +48,40 @@ export const endpoints = {
     learningPaths: '/admin/learning-paths',
     learningPath: (id: string | number) => `/admin/learning-paths/${id}`,
   },
+  community: {
+    feed: '/community/feed',
+    topics: '/community/topics',
+    trending: '/community/trending',
+    search: '/community/search',
+    posts: '/community/posts',
+    post: (id: number | string) => `/community/posts/${id}`,
+    postReplies: (id: number | string) => `/community/posts/${id}/replies`,
+    hideReply: (id: number | string) => `/community/posts/${id}/hide-reply`,
+    postReactions: (id: number | string) => `/community/posts/${id}/reactions`,
+    postRepost: (id: number | string) => `/community/posts/${id}/repost`,
+    pollVote: (pollId: number | string) => `/community/polls/${pollId}/vote`,
+    userFollow: (userId: number | string) => `/community/users/${userId}/follow`,
+  },
+  profile: {
+    me: '/profile/me',
+    update: '/profile',
+    avatarUpload: '/profile/avatar',
+    avatarDelete: '/profile/avatar',
+    updatePassword: '/profile/password',
+    show: (id: number | string) => `/profile/${id}`,
+  },
   learning: {
-    paths: '/learning-paths',
+    paths: '/learning/paths',
+    path: (slug: string) => `/learning/paths/${slug}`,
+    section: (id: string | number) => `/learning/sections/${id}`,
+    lesson: (id: string | number) => `/learning/lessons/${id}`,
+    attempts: (id: string | number) => `/learning/lessons/${id}/attempts`,
+    attempt: (id: string | number) => `/learning/lessons/${id}/attempt`,
+    progress: '/learning/progress',
+    gamification: '/learning/gamification',
+    consumeLife: '/learning/lives/consume',
+    leaderboard: '/learning/leaderboard',
+    streak: '/learning/streak',
   },
 } as const;
 
@@ -75,6 +107,8 @@ export const api = axios.create({
   withXSRFToken: true,
   headers: { Accept: 'application/json' },
 });
+
+export const apiClient = api;
 
 let csrfBootstrap: Promise<unknown> | null = null;
 

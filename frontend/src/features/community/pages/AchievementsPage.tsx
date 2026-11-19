@@ -3,8 +3,9 @@ import { Link } from 'react-router';
 import { StudentPageLayout } from '@/components/layout/StudentPageLayout';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Badge } from '@/components/ui/badge';
-import { Button, buttonVariants } from '@/components/ui/button';
-import { AppIcon as Icon } from '@/components/layout/AppIcon';
+import { buttonVariants } from '@/components/ui/button';
+import { useMe } from '@/features/auth/api/auth';
+import { useLeaderboardQuery } from '@/features/learning/api/useGamification';
 import { CURRENT_TOURNAMENT } from '../api/tournament';
 import { ArrowRight, Trophy, Sparkles } from 'lucide-react';
 import { cn } from '@/core/utils/cn';
@@ -54,9 +55,6 @@ const rankings: Record<string, Rank[]> = {
   'Tháng này': weeklyRanking.map((person, index) => ({ ...person, xp: person.xp * 4 - index * 35 })),
   'Tất cả': weeklyRanking.map((person, index) => ({ ...person, xp: person.xp * 12 - index * 120 })),
 };
-
-const CURRENT_USER = 'Trương Thanh Sơn';
-const CURRENT_TIER = CURRENT_TOURNAMENT.tier;
 
 function TierEmblem({ tier, active }: { tier: Tier; active: boolean }) {
   return (
@@ -109,12 +107,38 @@ function RankMarker({ place }: { place: number }) {
 
 export function AchievementsPage() {
   const [period, setPeriod] = useState('Tuần này');
-  const ranking = rankings[period] ?? weeklyRanking;
-  const currentUserIndex = ranking.findIndex((person) => person.name === CURRENT_USER);
-  const currentUser = ranking[currentUserIndex];
-  const currentTierIndex = tiers.findIndex((tier) => tier.name === CURRENT_TIER);
-  const visibleTiers = tiers.slice(0, currentTierIndex + 1);
-  const topPercent = currentUserIndex >= 0 ? Math.ceil(((currentUserIndex + 1) / ranking.length) * 100) : 100;
+  const { data: me } = useMe();
+  const currentUserName = me?.name ?? 'Bạn';
+  const leaderboardQuery = useLeaderboardQuery();
+  const leaderboard = leaderboardQuery.data;
+
+  // Use dynamic rankings from backend if available, fallback to mock list
+  const dynamicWeeklyRanking: Rank[] = leaderboard?.rankings?.length
+    ? leaderboard.rankings.map((r) => {
+        const isCurrent = r.user_id === me?.id || r.user_name === currentUserName;
+        return {
+          name: isCurrent ? currentUserName : r.user_name,
+          school: isCurrent ? 'Học viên SoftSkill AI' : 'Học viên',
+          xp: r.xp_this_week,
+          initials: (r.user_name || 'HV').slice(0, 2).toUpperCase(),
+          color: isCurrent ? 'bg-blue-100 text-blue-700' : 'bg-slate-100 text-slate-700',
+        };
+      })
+    : weeklyRanking;
+
+  const currentRankings: Record<string, Rank[]> = {
+    'Tuần này': dynamicWeeklyRanking,
+    'Tháng này': dynamicWeeklyRanking.map((person, index) => ({ ...person, xp: person.xp * 4 - index * 35 })),
+    'Tất cả': dynamicWeeklyRanking.map((person, index) => ({ ...person, xp: person.xp * 12 - index * 120 })),
+  };
+
+  const ranking = currentRankings[period] ?? dynamicWeeklyRanking;
+  const currentUserIndex = ranking.findIndex((person) => person.name === currentUserName);
+  const currentUser = ranking[currentUserIndex] ?? ranking[0];
+  const activeTier = leaderboard?.tier || CURRENT_TOURNAMENT.tier;
+  const currentTierIndex = tiers.findIndex((tier) => tier.name === activeTier);
+  const visibleTiers = tiers.slice(0, Math.max(1, currentTierIndex + 1));
+  const topPercent = currentUserIndex >= 0 ? Math.ceil(((currentUserIndex + 1) / ranking.length) * 100) : 10;
 
   return (
     <StudentPageLayout active="/achievements" title="Thành tích & Vinh danh">
@@ -127,7 +151,7 @@ export function AchievementsPage() {
                 <Trophy className="size-4 text-amber-500" /> BẢNG XẾP HẠNG HỌC VIÊN
               </p>
               <h1 className="mt-1 text-2xl font-black tracking-tight text-[#18345d] sm:text-3xl">
-                Giải đấu {CURRENT_TIER}
+                Giải đấu {activeTier}
               </h1>
               <p className="mt-1 text-xs font-bold text-amber-700 bg-amber-100/70 inline-block px-3 py-1 rounded-full">
                 Còn {CURRENT_TOURNAMENT.daysRemaining} ngày kết thúc mùa giải
@@ -137,7 +161,7 @@ export function AchievementsPage() {
             <div className="mt-6 pb-2">
               <div className="flex items-end justify-center gap-1.5 sm:gap-4 overflow-x-auto py-2">
                 {visibleTiers.map((tier) => (
-                  <TierEmblem key={tier.name} tier={tier} active={tier.name === CURRENT_TIER} />
+                  <TierEmblem key={tier.name} tier={tier} active={tier.name === activeTier} />
                 ))}
               </div>
             </div>
@@ -169,7 +193,7 @@ export function AchievementsPage() {
           <div className="space-y-1.5 px-3 py-3 sm:px-6" aria-label="Bảng xếp hạng">
             {ranking.map((person, index) => {
               const place = index + 1;
-              const isCurrentUser = person.name === CURRENT_USER;
+              const isCurrentUser = person.name === currentUserName;
               const isPromotion = place <= 3;
               const isRelegation = place >= 8;
 

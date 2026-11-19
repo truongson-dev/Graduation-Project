@@ -67,7 +67,6 @@ import {
   Send,
   Sparkles,
   Speech,
-  Square,
   Star,
   Subtitles,
   ThumbsUp,

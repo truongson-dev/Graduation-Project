@@ -5,7 +5,13 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { TooltipProvider } from '../ui/tooltip';
 import { StudentPageLayout } from './StudentPageLayout';
 
-function renderLayout(initialCollapsed = false) {
+function renderLayout(
+  initialCollapsed = false,
+  {
+    active = '/home',
+    initialEntries = ['/home'],
+  }: { active?: string; initialEntries?: string[] } = {},
+) {
   if (initialCollapsed) {
     window.localStorage.setItem('softskill_sidebar_collapsed', 'true');
   } else {
@@ -19,8 +25,8 @@ function renderLayout(initialCollapsed = false) {
   return render(
     <QueryClientProvider client={queryClient}>
       <TooltipProvider>
-        <MemoryRouter>
-          <StudentPageLayout active="/home">
+        <MemoryRouter initialEntries={initialEntries}>
+          <StudentPageLayout active={active}>
             <div>Nội dung trang test</div>
           </StudentPageLayout>
         </MemoryRouter>
@@ -163,5 +169,59 @@ describe('StudentPageLayout', () => {
     expect(screen.getByText('Gói học & Thanh toán')).toBeTruthy();
     expect(screen.getByText('Thông báo')).toBeTruthy();
     expect(screen.getByText('Đăng xuất')).toBeTruthy();
+  });
+
+  it('expands community dropdown submenu and highlights active child route', () => {
+    const { container } = renderLayout(false, {
+      active: '/home',
+      initialEntries: ['/home'],
+    });
+    const aside = container.querySelector('aside')!;
+
+    // Closed by default when not on /community
+    expect(within(aside).queryByRole('link', { name: 'Đã lưu' })).toBeNull();
+
+    const toggleBtn = within(aside).getByRole('button', { name: 'Mở rộng menu Cộng đồng' });
+    fireEvent.click(toggleBtn);
+
+    const savedLink = within(aside).getByRole('link', { name: 'Đã lưu' });
+    const likedLink = within(aside).getByRole('link', { name: 'Đã thích' });
+    const followingLink = within(aside).getByRole('link', { name: 'Đang theo dõi' });
+
+    expect(savedLink.getAttribute('href')).toBe('/community?tab=saved');
+    expect(likedLink.getAttribute('href')).toBe('/community?tab=liked');
+    expect(followingLink.getAttribute('href')).toBe('/community?tab=following');
+  });
+
+  it('auto-opens community submenu and highlights active sub-item when on /community?tab=saved', () => {
+    const { container } = renderLayout(false, {
+      active: '/community',
+      initialEntries: ['/community?tab=saved'],
+    });
+    const aside = container.querySelector('aside')!;
+
+    const communityLink = within(aside).getByRole('link', { name: /^Cộng đồng$/i });
+    const savedLink = within(aside).getByRole('link', { name: 'Đã lưu' });
+
+    expect(communityLink.getAttribute('aria-current')).toBeNull();
+    expect(communityLink.parentElement?.className).toContain('bg-blue-50');
+    expect(savedLink.getAttribute('aria-current')).toBe('page');
+    expect(savedLink.className).toContain('bg-blue-700');
+  });
+
+  it('opens community popover dropdown menu when sidebar is collapsed', async () => {
+    const { container } = renderLayout(true, {
+      active: '/community',
+      initialEntries: ['/community?tab=liked'],
+    });
+    const aside = container.querySelector('aside')!;
+
+    const communityTrigger = within(aside).getByRole('button', { name: 'Cộng đồng' });
+    fireEvent.click(communityTrigger);
+
+    expect(await screen.findByText('Bảng tin Cộng đồng')).toBeTruthy();
+    expect(screen.getByText('Đã lưu')).toBeTruthy();
+    expect(screen.getByText('Đã thích')).toBeTruthy();
+    expect(screen.getByText('Đang theo dõi')).toBeTruthy();
   });
 });

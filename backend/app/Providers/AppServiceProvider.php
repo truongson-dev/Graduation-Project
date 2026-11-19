@@ -2,11 +2,13 @@
 
 namespace App\Providers;
 
+use App\Ai\Providers\GeminiDecisionProvider;
 use App\Policies\ConversationPolicy;
 use Dedoc\Scramble\Scramble;
 use Dedoc\Scramble\SecurityDocumentation\MiddlewareAuthSecurityStrategy;
 use Dedoc\Scramble\Support\Generator\SecurityScheme;
 use Illuminate\Cache\RateLimiting\Limit;
+use Illuminate\Contracts\Events\Dispatcher;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -16,6 +18,7 @@ use Illuminate\Support\Facades\RateLimiter;
 use Illuminate\Support\ServiceProvider;
 use Illuminate\Support\Str;
 use Illuminate\Validation\Rules\Password;
+use Laravel\Ai\Ai;
 use Laravel\Ai\Models\Conversation;
 
 class AppServiceProvider extends ServiceProvider
@@ -39,6 +42,13 @@ class AppServiceProvider extends ServiceProvider
         $this->configureApiDocumentation();
 
         Gate::policy(Conversation::class, ConversationPolicy::class);
+
+        Ai::extend('gemini-decisions', static function ($app, array $config): GeminiDecisionProvider {
+            return new GeminiDecisionProvider(
+                $config,
+                $app->make(Dispatcher::class),
+            );
+        });
     }
 
     /**
@@ -93,6 +103,21 @@ class AppServiceProvider extends ServiceProvider
             Limit::perMinute(5)->by($this->aiRateLimitKey($request)),
             Limit::perDay(50)->by($this->aiRateLimitKey($request)),
         ]);
+
+        RateLimiter::for('community-post', fn (Request $request): Limit => Limit::perMinute(10)
+            ->by($this->aiRateLimitKey($request)));
+
+        RateLimiter::for('community-reply', fn (Request $request): Limit => Limit::perMinute(30)
+            ->by($this->aiRateLimitKey($request)));
+
+        RateLimiter::for('community-react', fn (Request $request): Limit => Limit::perMinute(90)
+            ->by($this->aiRateLimitKey($request)));
+
+        RateLimiter::for('community-read', fn (Request $request): Limit => Limit::perMinute(120)
+            ->by($this->aiRateLimitKey($request)));
+
+        RateLimiter::for('community-search', fn (Request $request): Limit => Limit::perMinute(60)
+            ->by($this->aiRateLimitKey($request)));
     }
 
     /**

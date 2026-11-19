@@ -74,27 +74,35 @@ jobs:
       - name: Check out the repository
         uses: actions/checkout@v4
 
+      - name: Set up pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 10
+
       - name: Set up Node.js
         uses: actions/setup-node@v4
         with:
           node-version: '22'
-          cache: npm
-          cache-dependency-path: frontend/package-lock.json
+          cache: pnpm
+          cache-dependency-path: frontend/pnpm-lock.yaml
 
-      - name: Install npm dependencies
-        run: npm ci
+      - name: Install pnpm dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Lint with Biome
+        run: pnpm run lint
 
       - name: Typecheck
-        run: npm run typecheck
+        run: pnpm run typecheck
 
       - name: Run the Vitest suite
-        run: npm test
+        run: pnpm test
 
       - name: Build the production bundle
-        run: npm run build
+        run: pnpm run build
 
       - name: Regenerate the API types
-        run: npm run api:types
+        run: pnpm run api:types
 
       - name: Fail when the generated API types are stale
         run: git diff --exit-code -- src/api/schema.ts

@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Api\V1\Ai;
 
 use App\Ai\Agents\AnswerGrader;
+use App\Ai\Support\PreflightGuard;
 use App\Data\Ai\AnswerFeedbackData;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Ai\GradeAnswerRequest;
@@ -15,15 +16,25 @@ class FeedbackController extends Controller
     /**
      * Grade a learner answer and return structured feedback.
      */
-    public function __invoke(GradeAnswerRequest $request): JsonResponse
+    public function __invoke(GradeAnswerRequest $request, PreflightGuard $preflight): JsonResponse
     {
         $validated = $request->validated();
+        $skill = (string) $validated['skill'];
+        $question = (string) $validated['question'];
+        $answer = (string) $validated['answer'];
+        $context = is_string($validated['context'] ?? null) ? $validated['context'] : null;
+
+        if ($rejection = $preflight->checkFeedback($skill, $question, $answer, $context)) {
+            return response()->json([
+                'message' => $rejection,
+            ], 422);
+        }
 
         $agent = new AnswerGrader(
-            skill: (string) $validated['skill'],
-            question: (string) $validated['question'],
-            answer: (string) $validated['answer'],
-            context: is_string($validated['context'] ?? null) ? $validated['context'] : null,
+            skill: $skill,
+            question: $question,
+            answer: $answer,
+            context: $context,
         );
 
         try {

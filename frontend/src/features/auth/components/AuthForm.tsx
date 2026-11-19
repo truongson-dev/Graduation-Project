@@ -12,7 +12,11 @@ import { useLogin, useRegister } from '../api/auth';
 import { PASSWORD_REQUIREMENTS, passwordSchema } from '@/core/utils/password';
 
 const loginSchema = z.object({
-  email: z.email('Email không đúng định dạng'),
+  email: z
+    .string()
+    .trim()
+    .min(1, 'Vui lòng nhập địa chỉ email')
+    .email('Email không đúng định dạng'),
   password: z.string().min(1, 'Vui lòng nhập mật khẩu'),
   rememberMe: z.boolean(),
 });
@@ -20,7 +24,11 @@ const loginSchema = z.object({
 const registerSchema = z
   .object({
     fullName: z.string().trim().min(1, 'Vui lòng nhập họ và tên của bạn'),
-    email: z.email('Email không đúng định dạng'),
+    email: z
+      .string()
+      .trim()
+      .min(1, 'Vui lòng nhập địa chỉ email')
+      .email('Email không đúng định dạng'),
     password: passwordSchema,
     passwordConfirmation: z.string().min(1, 'Vui lòng nhập lại mật khẩu'),
     agreeTerms: z
@@ -138,8 +146,11 @@ export const AuthForm: React.FC<AuthFormProps> = ({ onForgotPassword }) => {
         passwordConfirmation: values.passwordConfirmation,
       });
       registerForm.reset();
-      loginForm.setValue('email', values.email, { shouldValidate: true });
-      loginForm.setValue('password', '');
+      loginForm.reset({
+        email: values.email,
+        password: '',
+        rememberMe: false,
+      });
       setMode('login');
       setSuccessMessage('Tạo tài khoản thành công. Hãy đăng nhập bằng tài khoản vừa tạo.');
     } catch (error) {
@@ -166,9 +177,6 @@ export const AuthForm: React.FC<AuthFormProps> = ({ onForgotPassword }) => {
 
   const isLoading = login.isPending || register.isPending;
   const isLogin = mode === 'login';
-
-  const loginValues = loginForm.watch();
-  const registerValues = registerForm.watch();
 
   return (
     <div className="auth-form p-5 sm:p-7 flex flex-col justify-center">
@@ -241,12 +249,9 @@ export const AuthForm: React.FC<AuthFormProps> = ({ onForgotPassword }) => {
             type="email"
             icon="mail"
             placeholder="student@university.edu.vn"
-            value={loginValues.email}
-            onChange={(event) =>
-              loginForm.setValue('email', event.target.value, { shouldValidate: true })
-            }
-            error={loginForm.formState.errors.email?.message}
             autoComplete="email"
+            error={loginForm.formState.errors.email?.message}
+            {...loginForm.register('email')}
           />
 
           <InputField
@@ -255,12 +260,9 @@ export const AuthForm: React.FC<AuthFormProps> = ({ onForgotPassword }) => {
             type="password"
             icon="lock"
             placeholder="Nhập mật khẩu"
-            value={loginValues.password}
-            onChange={(event) =>
-              loginForm.setValue('password', event.target.value, { shouldValidate: true })
-            }
-            error={loginForm.formState.errors.password?.message}
             autoComplete="current-password"
+            error={loginForm.formState.errors.password?.message}
+            {...loginForm.register('password')}
             headerRightAction={
               <button
                 type="button"
@@ -277,10 +279,7 @@ export const AuthForm: React.FC<AuthFormProps> = ({ onForgotPassword }) => {
               <input
                 id="remember-check"
                 type="checkbox"
-                checked={loginValues.rememberMe}
-                onChange={(event) =>
-                  loginForm.setValue('rememberMe', event.target.checked)
-                }
+                {...loginForm.register('rememberMe')}
                 className="h-4 w-4 rounded border-slate-300 text-[#002045] focus:ring-[#002045] accent-[#002045] cursor-pointer"
               />
               <span className="text-xs font-medium text-slate-600">
@@ -319,12 +318,9 @@ export const AuthForm: React.FC<AuthFormProps> = ({ onForgotPassword }) => {
             type="text"
             icon="person"
             placeholder="Nguyễn Văn A"
-            value={registerValues.fullName}
-            onChange={(event) =>
-              registerForm.setValue('fullName', event.target.value, { shouldValidate: true })
-            }
-            error={registerForm.formState.errors.fullName?.message}
             autoComplete="name"
+            error={registerForm.formState.errors.fullName?.message}
+            {...registerForm.register('fullName')}
           />
 
           <InputField
@@ -333,12 +329,9 @@ export const AuthForm: React.FC<AuthFormProps> = ({ onForgotPassword }) => {
             type="email"
             icon="mail"
             placeholder="student@university.edu.vn"
-            value={registerValues.email}
-            onChange={(event) =>
-              registerForm.setValue('email', event.target.value, { shouldValidate: true })
-            }
-            error={registerForm.formState.errors.email?.message}
             autoComplete="email"
+            error={registerForm.formState.errors.email?.message}
+            {...registerForm.register('email')}
           />
 
           <InputField
@@ -347,13 +340,10 @@ export const AuthForm: React.FC<AuthFormProps> = ({ onForgotPassword }) => {
             type="password"
             icon="lock"
             placeholder="Tối thiểu 8 ký tự"
-            value={registerValues.password}
-            onChange={(event) =>
-              registerForm.setValue('password', event.target.value, { shouldValidate: true })
-            }
-            error={registerForm.formState.errors.password?.message}
-            helperText={PASSWORD_REQUIREMENTS}
             autoComplete="new-password"
+            helperText={PASSWORD_REQUIREMENTS}
+            error={registerForm.formState.errors.password?.message}
+            {...registerForm.register('password')}
           />
 
           <InputField
@@ -362,14 +352,9 @@ export const AuthForm: React.FC<AuthFormProps> = ({ onForgotPassword }) => {
             type="password"
             icon="lock_reset"
             placeholder="Nhập lại mật khẩu vừa tạo"
-            value={registerValues.passwordConfirmation}
-            onChange={(event) =>
-              registerForm.setValue('passwordConfirmation', event.target.value, {
-                shouldValidate: true,
-              })
-            }
-            error={registerForm.formState.errors.passwordConfirmation?.message}
             autoComplete="new-password"
+            error={registerForm.formState.errors.passwordConfirmation?.message}
+            {...registerForm.register('passwordConfirmation')}
           />
 
           <div>
@@ -377,12 +362,7 @@ export const AuthForm: React.FC<AuthFormProps> = ({ onForgotPassword }) => {
               <input
                 id="terms-check"
                 type="checkbox"
-                checked={registerValues.agreeTerms}
-                onChange={(event) =>
-                  registerForm.setValue('agreeTerms', event.target.checked, {
-                    shouldValidate: true,
-                  })
-                }
+                {...registerForm.register('agreeTerms')}
                 className="mt-0.5 h-4 w-4 rounded border-slate-300 text-[#002045] focus:ring-[#002045] accent-[#002045] shrink-0 cursor-pointer"
               />
               <label

@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Api\V1\Ai;
 
 use App\Ai\Agents\SoftSkillCoach;
+use App\Ai\Support\PreflightGuard;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Ai\ChatRequest;
 use App\Models\User;
@@ -23,7 +24,7 @@ class ChatController extends Controller
      * "meta" frame carrying the conversation ID and ending with a "done" frame. Provider
      * failures after the stream has started are reported as an "error" frame.
      */
-    public function __invoke(ChatRequest $request, ConversationStore $store): StreamedResponse
+    public function __invoke(ChatRequest $request, ConversationStore $store, PreflightGuard $preflight): StreamedResponse
     {
         $user = $request->user();
 
@@ -45,6 +46,22 @@ class ChatController extends Controller
             $conversation = Conversation::query()->findOrFail($conversationId);
 
             abort_unless(Gate::allows('view', $conversation), 404, 'Không tìm thấy hội thoại.');
+        }
+
+        if ($refusal = $preflight->checkChat($message)) {
+            return response()->stream(function () use ($conversationId, $refusal): void {
+                $this->emit(['type' => 'meta', 'conversation_id' => $conversationId]);
+                $this->emit(['type' => 'text_delta', 'delta' => $refusal]);
+                $this->emit([
+                    'type' => 'done',
+                    'conversation_id' => $conversationId,
+                    'assistant_message_id' => null,
+                ]);
+            }, 200, [
+                'Content-Type' => 'text/event-stream',
+                'Cache-Control' => 'no-cache, no-transform',
+                'X-Accel-Buffering' => 'no',
+            ]);
         }
 
         $stream = (new SoftSkillCoach)

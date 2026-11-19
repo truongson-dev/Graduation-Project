@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router';
-import { useLogout, useMe } from '@/lib/auth';
+import { useLogout, useMe } from '@/features/auth/api/auth';
 import { useAdminDashboard } from '../api/admin';
 import { BrandMark } from '@/components/layout/BrandMark';
 import {
@@ -111,7 +111,7 @@ export function AdminDashboardPage() {
           <div className="ml-auto flex items-center gap-3">
             <label className="hidden h-10 w-64 items-center gap-2 rounded-xl border border-slate-200 bg-slate-50 px-3 text-slate-400 md:flex"><Search className="size-4" /><input aria-label="Tìm kiếm" placeholder="Tìm kiếm trong hệ thống..." className="w-full bg-transparent text-xs outline-none placeholder:text-slate-400" /></label>
             <button type="button" aria-label="Thông báo" className="relative rounded-xl p-2 text-slate-600 hover:bg-slate-100"><Bell className="size-5" /><span className="absolute right-1 top-1 h-2 w-2 rounded-full bg-rose-500" /></button>
-            <button type="button" className="flex items-center gap-2 rounded-xl p-1.5 hover:bg-slate-50"><span className="flex h-9 w-9 items-center justify-center rounded-full bg-blue-100 text-sm font-extrabold text-blue-700">{adminName.split(' ').map((part) => part[0]).slice(-2).join('').toUpperCase()}</span><span className="hidden text-left sm:block"><span className="block text-xs font-bold text-slate-800">{adminName}</span><span className="block text-[10px] text-slate-400">Quản trị viên</span></span><ChevronDown className="size-4 text-slate-400" /></button>
+            <button type="button" className="flex items-center gap-2 rounded-xl p-1.5 hover:bg-slate-50"><span className="flex h-9 w-9 items-center justify-center rounded-full bg-blue-100 text-sm font-extrabold text-blue-700">{adminName.split(' ').map((part: string) => part[0]).slice(-2).join('').toUpperCase()}</span><span className="hidden text-left sm:block"><span className="block text-xs font-bold text-slate-800">{adminName}</span><span className="block text-[10px] text-slate-400">Quản trị viên</span></span><ChevronDown className="size-4 text-slate-400" /></button>
           </div>
         </header>
 

@@ -1,10 +1,9 @@
 import { Link } from 'react-router';
-import { useMe } from '@/features/auth/api/auth';
 import { StudentPageLayout } from '@/components/layout/StudentPageLayout';
 import { Progress } from '@/components/ui/progress';
 import { Badge } from '@/components/ui/badge';
 import { AppIcon as Icon, StreakFlameIcon } from '@/components/layout/AppIcon';
-import { hasCompletedLearningToday } from '../api/daily-learning';
+import { useStreakQuery } from '../api/useGamification';
 
 const tasks = [
   { icon: 'assignment', tone: 'bg-blue-100 text-blue-700', tag: 'Hôm nay', tagTone: 'bg-rose-50 text-rose-700', title: '1 bài tập slide cần AI chấm', detail: 'Bài Pitching Dự Án Khởi nghiệp: Kiểm tra bố cục và luận điểm.', action: 'Nộp ngay', xp: '+30 XP', to: '/practice/setup' },
@@ -19,18 +18,25 @@ const supportTools = [
 ];
 
 export const HomePage: React.FC = () => {
-  const user = useMe().data;
-  const firstName = user?.name?.trim().split(/\s+/).slice(-2).join(' ') || 'bạn';
-  const hasCompletedToday = hasCompletedLearningToday();
+  const streakQuery = useStreakQuery();
+  const streakData = streakQuery.data;
+  const hasCompletedToday = streakData?.completed_today ?? false;
   const currentWeekdayIndex = (new Date().getDay() + 6) % 7;
-  const streakDays = ['T2', 'T3', 'T4', 'T5', 'T6', 'T7', 'CN'].map((day, index) => ({
-    day,
-    isToday: index === currentWeekdayIndex,
-    completed:
-      index < currentWeekdayIndex
-        ? index >= Math.max(0, currentWeekdayIndex - 3)
-        : index === currentWeekdayIndex && hasCompletedToday,
-  }));
+  const weekdayLabels = ['T2', 'T3', 'T4', 'T5', 'T6', 'T7', 'CN'];
+  const streakDays = weekdayLabels.map((day, index) => {
+    const isToday = index === currentWeekdayIndex;
+    const serverDay = streakData?.this_week?.find((d) => d.day === day);
+    const completed = serverDay
+      ? serverDay.completed
+      : index < currentWeekdayIndex
+      ? index >= Math.max(0, currentWeekdayIndex - 3)
+      : isToday && hasCompletedToday;
+    return {
+      day,
+      isToday,
+      completed,
+    };
+  });
 
   return (
     <StudentPageLayout active="/home" title="Trang chủ">

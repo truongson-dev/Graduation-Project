@@ -49,7 +49,7 @@
 - `UserLessonProgress`: `belongsTo(User::class)`, `belongsTo(Lesson::class)`
 - `UserLessonAttempt`: `belongsTo(User::class)`, `belongsTo(Lesson::class)`, `answers_json` & `ai_feedback` cast as `array`
 
-- [ ] **Step 1: Tạo các tệp migrations cho 7 bảng**
+- [x] **Step 1: Tạo các tệp migrations cho 7 bảng**
 
 Tạo migration cho `learning_paths`:
 ```php
@@ -151,7 +151,7 @@ Schema::create('user_daily_streaks', function (Blueprint $table) {
 });
 ```
 
-- [ ] **Step 2: Tạo các Eloquent Models và thiết lập quan hệ**
+- [x] **Step 2: Tạo các Eloquent Models và thiết lập quan hệ**
 
 Tạo các file Model tương ứng với cast json và fillable attributes. Cập nhật `User.php` để thêm các quan hệ:
 ```php
@@ -171,12 +171,12 @@ public function dailyStreaks(): HasMany
 }
 ```
 
-- [ ] **Step 3: Chạy migration và kiểm tra tính toàn vẹn**
+- [x] **Step 3: Chạy migration và kiểm tra tính toàn vẹn**
 
 Run: `cd backend; php artisan migrate`
 Expected: Migration tables created successfully without errors.
 
-- [ ] **Step 4: Commit**
+- [x] **Step 4: Commit**
 ```bash
 git add backend/database/migrations backend/app/Models
 git commit -m "feat(learning): add database migrations and models for learning path and gamification"
@@ -195,7 +195,7 @@ git commit -m "feat(learning): add database migrations and models for learning p
 - Khởi tạo 7 Sections: Khởi động, Giao tiếp tự tin, Lắng nghe chủ động, Phản hồi tích cực, Thuyết trình cuốn hút, Phỏng vấn chuyên nghiệp, Tự tin bứt phá.
 - Khởi tạo 25 Lessons chuẩn hóa với đầy đủ nội dung (Lý thuyết Markdown tiếng Việt, Quiz trắc nghiệm 4 đáp án có giải thích, Bài viết với prompt và rubric chấm điểm).
 
-- [ ] **Step 1: Viết `LearningPathSeeder.php`**
+- [x] **Step 1: Viết `LearningPathSeeder.php`**
 
 Nội dung seed dữ liệu khớp hoàn toàn với 7 node hiện tại ở frontend. Cấu trúc bài học đa dạng:
 - Bài 1 (Khởi động - Khám phá điểm mạnh): `type = 'theory'` (Markdown chi tiết)
@@ -203,12 +203,12 @@ Nội dung seed dữ liệu khớp hoàn toàn với 7 node hiện tại ở fro
 - Bài 3 (Nhận diện phong cách): `type = 'writing'` (Viết đoạn văn ngắn phân tích phong cách giao tiếp)
 - Tương tự cho 6 sections còn lại.
 
-- [ ] **Step 2: Đăng ký Seeder vào `DatabaseSeeder.php` và chạy seed**
+- [x] **Step 2: Đăng ký Seeder vào `DatabaseSeeder.php` và chạy seed**
 
 Run: `cd backend; php artisan db:seed --class=LearningPathSeeder`
 Expected: `Database seeding completed successfully.`
 
-- [ ] **Step 3: Commit**
+- [x] **Step 3: Commit**
 ```bash
 git add backend/database/seeders
 git commit -m "feat(learning): add comprehensive seeder for soft skills learning path"
@@ -239,7 +239,7 @@ git commit -m "feat(learning): add comprehensive seeder for soft skills learning
 - `LessonAttemptService`:
   - `submit(User $user, Lesson $lesson, array $input): array`
 
-- [ ] **Step 1: Viết test cho `ProgressService` & `GamificationService`**
+- [x] **Step 1: Viết test cho `ProgressService` & `GamificationService`**
 
 Tạo `backend/tests/Unit/Services/LearningServiceTest.php`:
 Kiểm tra:
@@ -249,15 +249,15 @@ Kiểm tra:
 4. Tự động phục hồi mạng khi thời gian `lives_refill_at` đã trôi qua 24h.
 5. Tính toán streak liên tiếp chính xác.
 
-- [ ] **Step 2: Hiện thực `ProgressService.php`**
+- [x] **Step 2: Hiện thực `ProgressService.php`**
 
 Bao gồm logic tính toán phần trăm hoàn thành, trạng thái section (`complete`, `current`, `locked`), và tự động mở bài đầu tiên của section tiếp theo khi hoàn thành section trước.
 
-- [ ] **Step 3: Hiện thực `GamificationService.php`**
+- [x] **Step 3: Hiện thực `GamificationService.php`**
 
 Quản lý `total_xp`, chuỗi `current_streak`, `longest_streak`, cơ chế phục hồi 5 mạng sau 24h, và tổng hợp bảng xếp hạng tuần.
 
-- [ ] **Step 4: Hiện thực `LessonAttemptService.php`**
+- [x] **Step 4: Hiện thực `LessonAttemptService.php`**
 
 Xử lý nộp bài:
 - `theory`: Tự động cho điểm 100, pass = true.
@@ -265,12 +265,12 @@ Xử lý nộp bài:
 - `writing`: Kiểm tra API key cấu hình AI. Nếu chưa cấu hình, throw ServiceUnavailableException (503). Nếu có cấu hình, khởi tạo `App\Ai\Agents\AnswerGrader` với `$skill`, `$question`, `$answer`, `$context`, gọi `$agent->prompt()` và trích xuất điểm số cùng feedback (`summary`, `strengths`, `improvements`).
 - Lưu lịch sử `UserLessonAttempt`. Nếu pass, cập nhật `UserLessonProgress`, gọi `ProgressService::unlockNext()`, gọi `GamificationService::awardXp()` và `GamificationService::recordActivity()`.
 
-- [ ] **Step 5: Chạy Pest test để đảm bảo các service pass 100%**
+- [x] **Step 5: Chạy Pest test để đảm bảo các service pass 100%**
 
 Run: `cd backend; php artisan test --filter=LearningServiceTest`
 Expected: All tests pass.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 ```bash
 git add backend/app/Services/Learning backend/tests/Unit/Services/LearningServiceTest.php
 git commit -m "feat(learning): implement ProgressService, GamificationService, and LessonAttemptService"
@@ -299,10 +299,10 @@ git commit -m "feat(learning): implement ProgressService, GamificationService, a
   - Nếu writing: `content` từ 50 đến 5000 ký tự.
   - Nếu theory: `completed = true`.
 
-- [ ] **Step 1: Tạo `SubmitAttemptRequest.php` với custom validation theo `type` của Lesson**
-- [ ] **Step 2: Tạo các Controller kết nối với Services đã viết ở Task 3**
-- [ ] **Step 3: Đăng ký route group `v1/learning` trong `backend/routes/api.php`**
-- [ ] **Step 4: Commit**
+- [x] **Step 1: Tạo `SubmitAttemptRequest.php` với custom validation theo `type` của Lesson**
+- [x] **Step 2: Tạo các Controller kết nối với Services đã viết ở Task 3**
+- [x] **Step 3: Đăng ký route group `v1/learning` trong `backend/routes/api.php`**
+- [x] **Step 4: Commit**
 ```bash
 git add backend/app/Http/Controllers/Api/V1/Learning backend/app/Http/Requests/Learning backend/routes/api.php
 git commit -m "feat(learning): register learning path API routes and controllers"
@@ -320,15 +320,15 @@ git commit -m "feat(learning): register learning path API routes and controllers
 **Interfaces:**
 - Kiểm tra toàn bộ endpoint `GET /v1/learning/paths`, `GET /v1/learning/paths/{slug}`, `GET /v1/learning/lessons/{id}` (đảm bảo không lộ đáp án đúng quiz), `POST /v1/learning/lessons/{id}/attempt`, `POST /v1/learning/lives/consume`.
 
-- [ ] **Step 1: Viết Feature test cho Lộ trình học (`LearningPathTest.php`)**
-- [ ] **Step 2: Viết Feature test cho Nộp bài và Mở khóa (`LessonAttemptTest.php`)**
-- [ ] **Step 3: Viết Feature test cho Gamification & Bảng xếp hạng (`GamificationTest.php`)**
-- [ ] **Step 4: Chạy toàn bộ test suite backend**
+- [x] **Step 1: Viết Feature test cho Lộ trình học (`LearningPathTest.php`)**
+- [x] **Step 2: Viết Feature test cho Nộp bài và Mở khóa (`LessonAttemptTest.php`)**
+- [x] **Step 3: Viết Feature test cho Gamification & Bảng xếp hạng (`GamificationTest.php`)**
+- [x] **Step 4: Chạy toàn bộ test suite backend**
 
 Run: `cd backend; php artisan test --filter=Learning`
 Expected: Tất cả feature tests pass.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 ```bash
 git add backend/tests/Feature/Learning
 git commit -m "test(learning): add feature tests for learning path API endpoints"
@@ -339,15 +339,15 @@ git commit -m "test(learning): add feature tests for learning path API endpoints
 ### Task 6: Frontend API Client, Endpoints & TypeScript Types
 
 **Files:**
-- Create: `frontend/src/types/learning.ts`
-- Modify: `frontend/src/lib/api.ts:35-50`
+- Create: `frontend/src/features/learning/types/index.ts`
+- Modify: `frontend/src/core/api/client.ts`
 
 **Interfaces:**
 - `LearningPath`, `Section`, `Lesson`, `QuizQuestion`, `UserProgress`, `GamificationData`, `AttemptResult`, `StreakInfo` types.
-- Thêm nhóm `learning` vào `endpoints` object trong `frontend/src/lib/api.ts`.
+- Thêm nhóm `learning` vào `endpoints` object trong `frontend/src/core/api/client.ts`.
 
-- [ ] **Step 1: Tạo `frontend/src/types/learning.ts` chứa đầy đủ interface cho dữ liệu backend**
-- [ ] **Step 2: Mở rộng `endpoints.learning` trong `frontend/src/lib/api.ts`**
+- [x] **Step 1: Tạo `frontend/src/features/learning/types/index.ts` chứa đầy đủ interface cho dữ liệu backend**
+- [x] **Step 2: Mở rộng `endpoints.learning` trong `frontend/src/core/api/client.ts`**
 ```typescript
 learning: {
   paths: '/learning/paths',
@@ -363,9 +363,9 @@ learning: {
   streak: '/learning/streak',
 }
 ```
-- [ ] **Step 3: Commit**
+- [x] **Step 3: Commit**
 ```bash
-git add frontend/src/types/learning.ts frontend/src/lib/api.ts
+git add frontend/src/features/learning/types frontend/src/core/api/client.ts
 git commit -m "feat(learning): declare frontend types and api endpoints for learning path"
 ```
 
@@ -374,10 +374,10 @@ git commit -m "feat(learning): declare frontend types and api endpoints for lear
 ### Task 7: Frontend React Query Hooks
 
 **Files:**
-- Create: `frontend/src/hooks/useLearningPath.ts`
-- Create: `frontend/src/hooks/useLesson.ts`
-- Create: `frontend/src/hooks/useLessonAttempt.ts`
-- Create: `frontend/src/hooks/useGamification.ts`
+- Create: `frontend/src/features/learning/api/useLearningPath.ts`
+- Create: `frontend/src/features/learning/api/useLesson.ts`
+- Create: `frontend/src/features/learning/api/useLessonAttempt.ts`
+- Create: `frontend/src/features/learning/api/useGamification.ts`
 
 **Interfaces:**
 - `useLearningPath(slug)`: query lấy chi tiết lộ trình và sections
@@ -386,16 +386,16 @@ git commit -m "feat(learning): declare frontend types and api endpoints for lear
 - `useGamification()`: query lấy XP, streak, lives
 - `useConsumeLife()`: mutation trừ mạng sống
 
-- [ ] **Step 1: Tạo các hook với TanStack Query và Axios instance đã có sẵn**
-- [ ] **Step 2: Viết test cho các hooks (`frontend/src/hooks/useLearningPath.test.ts`)**
-- [ ] **Step 3: Chạy test hooks bằng Vitest**
+- [x] **Step 1: Tạo các hook với TanStack Query và Axios instance từ `src/core/api/client`**
+- [x] **Step 2: Viết test cho các hooks (`frontend/src/features/learning/api/useLearningPath.test.ts`)**
+- [x] **Step 3: Chạy test hooks bằng Vitest**
 
 Run: `cd frontend; npm run test -- useLearningPath`
 Expected: PASS
 
-- [ ] **Step 4: Commit**
+- [x] **Step 4: Commit**
 ```bash
-git add frontend/src/hooks
+git add frontend/src/features/learning/api
 git commit -m "feat(learning): implement React Query hooks for learning path and gamification"
 ```
 
@@ -404,11 +404,11 @@ git commit -m "feat(learning): implement React Query hooks for learning path and
 ### Task 8: Frontend Sub-components (Theory, Quiz, Writing, Sidebar)
 
 **Files:**
-- Create: `frontend/src/components/Learning/TheoryContent.tsx`
-- Create: `frontend/src/components/Learning/QuizContent.tsx`
-- Create: `frontend/src/components/Learning/WritingContent.tsx`
-- Create: `frontend/src/components/Learning/LessonResultModal.tsx`
-- Create: `frontend/src/components/Learning/GamificationSidebar.tsx`
+- Create: `frontend/src/features/learning/components/TheoryContent.tsx`
+- Create: `frontend/src/features/learning/components/QuizContent.tsx`
+- Create: `frontend/src/features/learning/components/WritingContent.tsx`
+- Create: `frontend/src/features/learning/components/LessonResultModal.tsx`
+- Create: `frontend/src/features/learning/components/GamificationSidebar.tsx`
 
 **Interfaces:**
 - `TheoryContent`: hiển thị Markdown nội dung bài học, nút "Đã hiểu & Hoàn thành"
@@ -417,14 +417,14 @@ git commit -m "feat(learning): implement React Query hooks for learning path and
 - `LessonResultModal`: modal chúc mừng khi qua bài, hiển thị điểm, XP nhận được, nút "Bài tiếp theo"
 - `GamificationSidebar`: tách từ `LearningPathPage` hiện tại thành component dùng chung, kết nối API thay vì localStorage
 
-- [ ] **Step 1: Tạo `TheoryContent.tsx`**
-- [ ] **Step 2: Tạo `QuizContent.tsx` với tương tác chọn đáp án và xác nhận câu hỏi**
-- [ ] **Step 3: Tạo `WritingContent.tsx` với giao diện nhập liệu và xem rubric**
-- [ ] **Step 4: Tạo `LessonResultModal.tsx`**
-- [ ] **Step 5: Tạo `GamificationSidebar.tsx`**
-- [ ] **Step 6: Commit**
+- [x] **Step 1: Tạo `TheoryContent.tsx`**
+- [x] **Step 2: Tạo `QuizContent.tsx` với tương tác chọn đáp án và xác nhận câu hỏi**
+- [x] **Step 3: Tạo `WritingContent.tsx` với giao diện nhập liệu và xem rubric**
+- [x] **Step 4: Tạo `LessonResultModal.tsx`**
+- [x] **Step 5: Tạo `GamificationSidebar.tsx`**
+- [x] **Step 6: Commit**
 ```bash
-git add frontend/src/components/Learning
+git add frontend/src/features/learning/components
 git commit -m "feat(learning): create learning interactive sub-components"
 ```
 
@@ -433,26 +433,26 @@ git commit -m "feat(learning): create learning interactive sub-components"
 ### Task 9: Frontend Pages & Router Integration
 
 **Files:**
-- Create: `frontend/src/pages/LessonPage.tsx`
-- Modify: `frontend/src/pages/LearningPathPage.tsx:1-269`
-- Modify: `frontend/src/router.tsx:50-70`
+- Create: `frontend/src/features/learning/pages/LessonPage.tsx`
+- Modify: `frontend/src/features/learning/pages/LearningPathPage.tsx`
+- Modify: `frontend/src/router/index.tsx`
 
 **Interfaces:**
 - `LessonPage`: Route `/learning/lesson/:id`, load dữ liệu bài học theo ID từ API, render linh hoạt `TheoryContent`, `QuizContent` hoặc `WritingContent`.
 - `LearningPathPage`: Refactor hoàn toàn để đọc dữ liệu từ `useLearningPath` và `useGamification`, giữ nguyên giao diện bản đồ SVG uốn lượn và hiệu ứng Duolingo đẹp mắt.
-- `router.tsx`: Thêm route `/learning/lesson/:id` được bọc bởi `RequireAuth`.
+- `src/router/index.tsx`: Thêm route `/learning/lesson/:id` được bọc bởi `RequireAuth`.
 
-- [ ] **Step 1: Viết `LessonPage.tsx` tích hợp các component bài học và xử lý tiêu hao mạng sống khi bắt đầu**
-- [ ] **Step 2: Thêm route `/learning/lesson/:id` vào `frontend/src/router.tsx`**
-- [ ] **Step 3: Refactor `LearningPathPage.tsx` thay thế dữ liệu hardcode bằng dữ liệu từ API**
-- [ ] **Step 4: Kiểm tra build TypeScript của frontend**
+- [x] **Step 1: Viết `LessonPage.tsx` tích hợp các component bài học và xử lý tiêu hao mạng sống khi bắt đầu**
+- [x] **Step 2: Thêm route `/learning/lesson/:id` vào `frontend/src/router/index.tsx`**
+- [x] **Step 3: Refactor `LearningPathPage.tsx` thay thế dữ liệu hardcode bằng dữ liệu từ API**
+- [x] **Step 4: Kiểm tra build TypeScript của frontend**
 
 Run: `cd frontend; npm run build`
 Expected: Build thành công không có lỗi type hoặc linting.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 ```bash
-git add frontend/src/pages frontend/src/router.tsx
+git add frontend/src/features/learning/pages frontend/src/router/index.tsx
 git commit -m "feat(learning): integrate LessonPage and refactor LearningPathPage with live API data"
 ```
 
@@ -461,24 +461,24 @@ git commit -m "feat(learning): integrate LessonPage and refactor LearningPathPag
 ### Task 10: Kiểm Thử Toàn Diện & Verification
 
 **Files:**
-- Modify: `frontend/src/pages/LearningPathPage.test.tsx` (nếu cần cập nhật mock API)
-- Create: `frontend/src/pages/LessonPage.test.tsx`
+- Modify: `frontend/src/features/learning/pages/LearningPathPage.test.tsx` (nếu có hoặc tạo mới)
+- Create: `frontend/src/features/learning/pages/LessonPage.test.tsx`
 
-- [ ] **Step 1: Chạy kiểm thử tự động toàn bộ Backend**
+- [x] **Step 1: Chạy kiểm thử tự động toàn bộ Backend**
 Run: `cd backend; php artisan test`
 Expected: Tất cả bài test (gồm cả auth, presentation, và learning) đều PASS.
 
-- [ ] **Step 2: Chạy kiểm thử tự động toàn bộ Frontend**
+- [x] **Step 2: Chạy kiểm thử tự động toàn bộ Frontend**
 Run: `cd frontend; npm run test`
 Expected: Tất cả vitest suites đều PASS.
 
-- [ ] **Step 3: Kiểm thử luồng trải nghiệm thực tế (E2E Manual / Smoke test)**
+- [x] **Step 3: Kiểm thử luồng trải nghiệm thực tế (E2E Manual / Smoke test)**
 1. Mở trang `/learning-path`: bản đồ hiển thị 7 sections từ Database, tiến độ chính xác.
 2. Bấm vào bài học đang mở khóa: chuyển sang `/learning/lesson/{id}`.
 3. Hoàn thành bài học: điểm số được chấm, nhận XP, hiển thị kết quả và mở khóa bài tiếp theo.
 4. Trừ mạng và cập nhật streak hiển thị tức thì trên sidebar.
 
-- [ ] **Step 4: Commit hoàn tất**
+- [x] **Step 4: Commit hoàn tất**
 ```bash
 git add .
 git commit -m "chore(learning): verify and complete learning path feature implementation"

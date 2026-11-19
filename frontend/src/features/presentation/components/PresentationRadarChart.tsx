@@ -21,12 +21,14 @@ export interface RadarDataPoint {
   label: string
   value: number // 0 to 100
   shortLabel?: string
+  benchmark?: string
 }
 
 export interface PresentationRadarChartProps {
   data: RadarDataPoint[]
   overallScore: number
   className?: string
+  bare?: boolean
 }
 
 const chartConfig = {
@@ -40,6 +42,7 @@ export function PresentationRadarChart({
   data,
   overallScore,
   className,
+  bare = false,
 }: PresentationRadarChartProps) {
   // Format data for Recharts RadarChart
   const chartData = React.useMemo(() => {
@@ -57,6 +60,49 @@ export function PresentationRadarChart({
   }
 
   const status = getScoreStatus(overallScore)
+
+  const chartElement = (
+    <ChartContainer
+      config={chartConfig}
+      className="mx-auto aspect-square max-h-[260px] w-full"
+    >
+      <RadarChart data={chartData} margin={{ top: 12, right: 28, bottom: 12, left: 28 }}>
+        <ChartTooltip
+          cursor={false}
+          content={<ChartTooltipContent hideLabel />}
+        />
+        <PolarGrid className="stroke-slate-200" strokeDasharray="3 3" />
+        <PolarAngleAxis
+          dataKey="pillar"
+          tick={{ fill: "#475569", fontSize: 11, fontWeight: 600 }}
+        />
+        <PolarRadiusAxis
+          angle={90}
+          domain={[0, 100]}
+          tick={false}
+          axisLine={false}
+        />
+        <Radar
+          name="Điểm đánh giá"
+          dataKey="score"
+          fill="var(--color-score)"
+          fillOpacity={0.25}
+          stroke="var(--color-score)"
+          strokeWidth={2}
+          dot={{
+            r: 3.5,
+            fill: "var(--color-score)",
+            stroke: "#ffffff",
+            strokeWidth: 1.5,
+          }}
+        />
+      </RadarChart>
+    </ChartContainer>
+  )
+
+  if (bare) {
+    return <div className={cn("flex items-center justify-center w-full", className)}>{chartElement}</div>
+  }
 
   return (
     <Card className={cn("rounded-2xl border-slate-200/90 bg-white shadow-xs flex flex-col justify-between", className)}>
@@ -77,42 +123,7 @@ export function PresentationRadarChart({
       </CardHeader>
 
       <CardContent className="pb-0 px-2 flex-1 flex items-center justify-center">
-        <ChartContainer
-          config={chartConfig}
-          className="mx-auto aspect-square max-h-[240px] w-full"
-        >
-          <RadarChart data={chartData} margin={{ top: 12, right: 24, bottom: 12, left: 24 }}>
-            <ChartTooltip
-              cursor={false}
-              content={<ChartTooltipContent hideLabel />}
-            />
-            <PolarGrid className="stroke-slate-200" strokeDasharray="3 3" />
-            <PolarAngleAxis
-              dataKey="pillar"
-              tick={{ fill: "#475569", fontSize: 11, fontWeight: 600 }}
-            />
-            <PolarRadiusAxis
-              angle={90}
-              domain={[0, 100]}
-              tick={false}
-              axisLine={false}
-            />
-            <Radar
-              name="Điểm đánh giá"
-              dataKey="score"
-              fill="var(--color-score)"
-              fillOpacity={0.25}
-              stroke="var(--color-score)"
-              strokeWidth={2}
-              dot={{
-                r: 3.5,
-                fill: "var(--color-score)",
-                stroke: "#ffffff",
-                strokeWidth: 1.5,
-              }}
-            />
-          </RadarChart>
-        </ChartContainer>
+        {chartElement}
       </CardContent>
 
       <CardFooter className="pt-2 pb-4 px-5 border-t border-slate-100 flex items-center justify-between">

@@ -1,19 +1,38 @@
-import { useEffect, useRef, useState, type ChangeEvent, type DragEvent } from 'react';
+import { useEffect, useMemo, useRef, useState, type ChangeEvent, type DragEvent } from 'react';
 import { useNavigate } from 'react-router';
 import { StudentPageLayout } from '@/components/layout/StudentPageLayout';
 import { extractSlideText } from '../api/slide';
+import { preloadVisionTasks } from '../hooks/useMediaPipeTracking';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { Input } from '@/components/ui/input';
-import { Skeleton } from '@/components/ui/skeleton';
+import { DataTable, DataTableColumnHeader, createDataTableColumnHelper } from '@/components/ui/data-table';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
+import { VietnamFlag, UkFlag } from '@/components/ui/flags';
 import { Alert, AlertDescription } from '@/components/ui/alert';
-import { API_ROOT } from '@/core/api/client';
 import { getPresentationHistory, deletePresentationHistoryEntry, type PresentationHistoryEntry } from '../api/presentation-history';
-import { usePresentationSessions, useDeletePresentation, type PresentationSessionDto } from '../api/presentation-session';
+import { usePresentationSessions, useDeletePresentation } from '../api/presentation-session';
 import { cn } from '@/core/utils/cn';
-import { FileText, History, ArrowRight, Trash2, Loader2, Clock, Calendar, Search } from 'lucide-react';
+import {
+  FileText,
+  History,
+  ArrowRight,
+  Trash2,
+  Loader2,
+  Clock,
+  Calendar,
+  Search,
+  CheckCircle2,
+  AlertCircle,
+  MoreHorizontal,
+  Copy,
+  Sparkles,
+} from 'lucide-react';
 
 type IconName = string;
 type PracticeFile = { file: File; url: string };
@@ -28,6 +47,20 @@ function Icon({ name, className = '' }: { name: IconName; className?: string }) 
 function formatSize(bytes: number) {
   return bytes >= 1024 * 1024 ? `${(bytes / (1024 * 1024)).toFixed(1)} MB` : `${Math.max(1, Math.round(bytes / 1024))} KB`;
 }
+
+type UnifiedSession = {
+  id: string;
+  title: string;
+  badgeSub: string;
+  createdAtFormatted: string;
+  durationLabel: string;
+  status: 'completed' | 'processing' | 'failed';
+  isProcessing: boolean;
+  isFailed: boolean;
+  onOpen: () => void;
+  onDelete: () => void;
+  actionLabel: string;
+};
 
 export const PracticeSetupPage: React.FC = () => {
   const navigate = useNavigate();
@@ -54,11 +87,18 @@ export const PracticeSetupPage: React.FC = () => {
     typeof navigator !== 'undefined' && navigator.onLine ? 'checking' : 'offline'
   ));
   const [presentationHistory, setPresentationHistory] = useState<PresentationHistoryEntry[]>(getPresentationHistory);
-  const [historySearchQuery, setHistorySearchQuery] = useState('');
   const serverSessionsQuery = usePresentationSessions();
   const deleteSessionMutation = useDeletePresentation();
 
   const syncHistory = () => setPresentationHistory(getPresentationHistory());
+
+  useEffect(() => {
+    // Warm up MediaPipe vision models in the background while user configures setup
+    const timer = setTimeout(() => {
+      void preloadVisionTasks().catch(() => {});
+    }, 200);
+    return () => clearTimeout(timer);
+  }, []);
 
   useEffect(() => {
     window.addEventListener('storage', syncHistory);
@@ -66,64 +106,16 @@ export const PracticeSetupPage: React.FC = () => {
   }, []);
 
   useEffect(() => {
-    let disposed = false;
-    let activeController: AbortController | null = null;
+    const handleOnline = () => setNetworkStatus('stable');
+    const handleOffline = () => setNetworkStatus('offline');
 
-    const updateNetworkStatus = async () => {
-      if (document.hidden) return;
-      if (!navigator.onLine) {
-        setNetworkStatus('offline');
-        return;
-      }
+    setNetworkStatus(typeof navigator !== 'undefined' && navigator.onLine ? 'stable' : 'offline');
 
-      activeController?.abort();
-      const controller = new AbortController();
-      activeController = controller;
-      const timeoutId = window.setTimeout(() => controller.abort(), 5000);
-      const startedAt = performance.now();
-
-      try {
-        const response = await fetch(`${API_ROOT}/health`, {
-          cache: 'no-store',
-          signal: controller.signal,
-          headers: { Accept: 'application/json' },
-        });
-        const latency = performance.now() - startedAt;
-
-        if (disposed || !response.ok) {
-          if (!disposed) setNetworkStatus('offline');
-          return;
-        }
-
-        setNetworkStatus(latency > 1800 ? 'poor' : latency > 800 ? 'weak' : 'stable');
-      } catch {
-        if (!disposed && document.hidden) return;
-        if (!disposed && !controller.signal.aborted) setNetworkStatus('offline');
-        else if (!disposed && controller.signal.aborted) setNetworkStatus('poor');
-      } finally {
-        window.clearTimeout(timeoutId);
-        if (activeController === controller) activeController = null;
-      }
-    };
-
-    void updateNetworkStatus();
-    const intervalId = window.setInterval(() => {
-      if (!document.hidden) void updateNetworkStatus();
-    }, 15000);
-    const handleVisibilityChange = () => {
-      if (document.hidden) activeController?.abort();
-      else void updateNetworkStatus();
-    };
-    window.addEventListener('online', updateNetworkStatus);
-    window.addEventListener('offline', updateNetworkStatus);
-    document.addEventListener('visibilitychange', handleVisibilityChange);
+    window.addEventListener('online', handleOnline);
+    window.addEventListener('offline', handleOffline);
     return () => {
-      disposed = true;
-      window.clearInterval(intervalId);
-      window.removeEventListener('online', updateNetworkStatus);
-      window.removeEventListener('offline', updateNetworkStatus);
-      document.removeEventListener('visibilitychange', handleVisibilityChange);
-      activeController?.abort();
+      window.removeEventListener('online', handleOnline);
+      window.removeEventListener('offline', handleOffline);
     };
   }, []);
 
@@ -145,7 +137,7 @@ export const PracticeSetupPage: React.FC = () => {
     if (!candidate) return;
     const extension = candidate.name.split('.').pop()?.toLowerCase();
     if (extension !== 'pdf') {
-      setNotice('Vui lòng chọn tệp PDF (.pdf).');
+      setNotice('Vui lòng chọn file định dạng PDF.');
       return;
     }
     if (candidate.size > MAX_PDF_SIZE_BYTES) {
@@ -280,6 +272,148 @@ export const PracticeSetupPage: React.FC = () => {
     });
   };
 
+  const historyColumns = useMemo(() => {
+    const columnHelper = createDataTableColumnHelper<UnifiedSession>();
+    return columnHelper.columns([
+      columnHelper.accessor('title', {
+        header: ({ column }) => (
+          <DataTableColumnHeader column={column} title="PHIÊN THUYẾT TRÌNH" icon={FileText} />
+        ),
+        cell: ({ row }) => (
+          <div className="flex items-center py-0.5">
+            <span className="truncate text-sm font-semibold text-slate-900 group-hover:text-blue-700 transition-colors">
+              {row.original.title}
+            </span>
+          </div>
+        ),
+        meta: { title: 'Phiên thuyết trình' },
+      }),
+      columnHelper.accessor('createdAtFormatted', {
+        header: ({ column }) => (
+          <DataTableColumnHeader column={column} title="THỜI GIAN" icon={Calendar} className="justify-center" />
+        ),
+        cell: ({ getValue }) => (
+          <div className="flex items-center justify-center text-center">
+            <span className="text-xs text-slate-600 font-medium">
+              {getValue() as string}
+            </span>
+          </div>
+        ),
+        meta: { title: 'Thời gian' },
+      }),
+      columnHelper.accessor('durationLabel', {
+        header: ({ column }) => (
+          <DataTableColumnHeader column={column} title="THỜI LƯỢNG" icon={Clock} className="justify-center" />
+        ),
+        cell: ({ getValue }) => (
+          <div className="flex items-center justify-center text-center">
+            <span className="text-xs font-mono font-medium text-slate-700 tabular-nums">
+              {getValue() as string}
+            </span>
+          </div>
+        ),
+        meta: { title: 'Thời lượng' },
+      }),
+      columnHelper.accessor('status', {
+        id: 'status',
+        header: ({ column }) => (
+          <DataTableColumnHeader column={column} title="TRẠNG THÁI AI" icon={Sparkles} className="justify-center" />
+        ),
+        cell: ({ row }) => {
+          const item = row.original;
+          return (
+            <div className="flex items-center justify-center text-center">
+              {item.isProcessing ? (
+                <Badge variant="outline" className="border-blue-200 bg-blue-50 text-blue-700 text-xs font-medium py-1 px-2.5 gap-1.5 shadow-2xs">
+                  <Loader2 className="size-3.5 animate-spin text-blue-600 shrink-0" />
+                  <span>Đang phân tích</span>
+                </Badge>
+              ) : item.isFailed ? (
+                <Badge variant="outline" className="border-rose-200 bg-rose-50 text-rose-700 text-xs font-medium py-1 px-2.5 gap-1.5 shadow-2xs">
+                  <AlertCircle className="size-3.5 text-rose-600 shrink-0" />
+                  <span>Cần chấm lại</span>
+                </Badge>
+              ) : (
+                <Badge variant="outline" className="border-emerald-200 bg-emerald-50 text-emerald-700 text-xs font-medium py-1 px-2.5 gap-1.5 shadow-2xs">
+                  <CheckCircle2 className="size-3.5 text-emerald-600 shrink-0" />
+                  <span>Hoàn thành</span>
+                </Badge>
+              )}
+            </div>
+          );
+        },
+        filterFn: (row, id, value: string[]) => {
+          if (!value || value.length === 0) return true;
+          return value.includes(row.getValue(id));
+        },
+        meta: { title: 'Trạng thái AI' },
+      }),
+      columnHelper.display({
+        id: 'actions',
+        header: () => (
+          <div className="text-center text-xs font-semibold text-slate-500 uppercase tracking-wider">
+            THAO TÁC
+          </div>
+        ),
+        cell: ({ row }) => {
+          const item = row.original;
+          return (
+            <div className="flex items-center justify-center" onClick={(e) => e.stopPropagation()}>
+              <DropdownMenu>
+                <DropdownMenuTrigger
+                  render={
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      aria-label={`Tùy chọn cho bài ${item.title}`}
+                      className="size-8 text-slate-400 hover:text-slate-700 hover:bg-slate-100 cursor-pointer"
+                    >
+                      <MoreHorizontal className="size-4" />
+                    </Button>
+                  }
+                />
+                <DropdownMenuContent align="end" className="w-44 bg-white p-1 rounded-xl shadow-md border border-slate-200">
+                  <DropdownMenuItem onClick={item.onOpen} className="text-xs py-1.5 px-2 rounded-lg cursor-pointer">
+                    <ArrowRight className="size-3.5 mr-2 text-blue-600" /> Xem chi tiết
+                  </DropdownMenuItem>
+                  <DropdownMenuItem
+                    onClick={() => navigator.clipboard.writeText(item.id)}
+                    className="text-xs py-1.5 px-2 rounded-lg cursor-pointer"
+                  >
+                    <Copy className="size-3.5 mr-2 text-slate-500" /> Sao chép ID
+                  </DropdownMenuItem>
+                  <DropdownMenuSeparator className="my-1 border-t border-slate-100" />
+                  <DropdownMenuItem
+                    onClick={item.onDelete}
+                    className="text-xs py-1.5 px-2 rounded-lg cursor-pointer text-rose-600 focus:text-rose-700 focus:bg-rose-50"
+                  >
+                    <Trash2 className="size-3.5 mr-2" /> Xóa phiên
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+            </div>
+          );
+        },
+        enableHiding: false,
+      }),
+    ]);
+  }, []);
+
+  const statusFacetedFilters = useMemo(
+    () => [
+      {
+        columnId: 'status',
+        title: 'Trạng thái',
+        options: [
+          { label: 'Hoàn thành', value: 'completed', icon: CheckCircle2 },
+          { label: 'Đang phân tích', value: 'processing', icon: Loader2 },
+          { label: 'Cần chấm lại', value: 'failed', icon: AlertCircle },
+        ],
+      },
+    ],
+    []
+  );
+
   const canStartPractice = Boolean(file) && cameraState === 'ready' && micState === 'ready' && networkStatus !== 'offline';
 
   return (
@@ -296,7 +430,7 @@ export const PracticeSetupPage: React.FC = () => {
                   <Icon name="description" className="text-blue-700" /> Tài liệu &amp; Slide thuyết trình
                 </h2>
                 <Badge variant="secondary" className="px-2.5 py-0.5 text-[11px] font-semibold text-slate-600 bg-slate-100 border border-slate-200/70">
-                  Chỉ PDF • Tối đa 100 MB
+                  PDF • Tối đa 100 MB
                 </Badge>
               </div>
 
@@ -324,7 +458,10 @@ export const PracticeSetupPage: React.FC = () => {
                   <div className="rounded-xl bg-white p-4 shadow-xs border border-slate-200/70">
                     <div className="flex flex-wrap items-center gap-3">
                       <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-rose-50 text-rose-600 border border-rose-100 shadow-2xs">
-                        <Icon name="picture_as_pdf" className="text-2xl text-rose-600" />
+                        <Icon
+                          name="picture_as_pdf"
+                          className="text-2xl text-rose-600"
+                        />
                       </span>
                       <div className="min-w-0 flex-1 text-left">
                         <p className="truncate text-sm font-bold text-slate-800">{file.file.name}</p>
@@ -340,13 +477,6 @@ export const PracticeSetupPage: React.FC = () => {
                           className="flex flex-1 items-center justify-center gap-1 rounded-lg bg-slate-100 px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-200 transition sm:flex-none cursor-pointer"
                         >
                           <Icon name="visibility" className="text-base" /> Xem trước
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => fileInputRef.current?.click()}
-                          className="flex flex-1 items-center justify-center gap-1 rounded-lg bg-slate-100 px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-200 transition sm:flex-none cursor-pointer"
-                        >
-                          <Icon name="swap_horiz" className="text-base" /> Đổi file
                         </button>
                         <button
                           type="button"
@@ -452,7 +582,7 @@ export const PracticeSetupPage: React.FC = () => {
 
               {/* Video Screen Container - Clean, No Dashed Lines, No Face Tracking Box */}
               <div className="relative aspect-video overflow-hidden rounded-2xl bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 shadow-inner">
-                {cameraState === 'ready' ? (
+                {cameraState === 'ready' && (
                   <video
                     ref={videoRef}
                     autoPlay
@@ -460,25 +590,6 @@ export const PracticeSetupPage: React.FC = () => {
                     playsInline
                     className="h-full w-full scale-x-[-1] object-cover"
                   />
-                ) : (
-                  <div className="absolute inset-0 flex flex-col items-center justify-center px-6 text-center text-white">
-                    <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-white/10 backdrop-blur-md border border-white/15 shadow-sm">
-                      <Icon name="videocam" className="text-3xl text-slate-200" />
-                    </div>
-                    <p className="mt-3 text-sm font-bold text-white">
-                      {cameraState === 'error' ? 'Không thể truy cập camera' : 'Camera đang tắt'}
-                    </p>
-                    <p className="mt-1 text-xs text-slate-300 max-w-xs">
-                      Bật camera để kiểm tra góc nhìn, ánh sáng và phong thái trước khi bắt đầu.
-                    </p>
-                    <button
-                      type="button"
-                      onClick={() => void toggleCamera()}
-                      className="mt-4 inline-flex items-center gap-1.5 rounded-xl bg-blue-600 px-4 py-2 text-xs font-bold text-white hover:bg-blue-500 transition shadow cursor-pointer"
-                    >
-                      <Icon name="videocam" className="text-base" /> Bật Camera ngay
-                    </button>
-                  </div>
                 )}
 
                 {/* Floating Media Toggle Controls (Bottom Right) */}
@@ -577,7 +688,7 @@ export const PracticeSetupPage: React.FC = () => {
                           : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
                       }`}
                     >
-                      <span aria-hidden="true">🇻🇳</span>
+                      <VietnamFlag />
                       <span>Tiếng Việt</span>
                     </button>
                     <button
@@ -590,7 +701,7 @@ export const PracticeSetupPage: React.FC = () => {
                           : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
                       }`}
                     >
-                      <span aria-hidden="true">🇬🇧</span>
+                      <UkFlag />
                       <span>Tiếng Anh</span>
                     </button>
                   </div>
@@ -636,264 +747,84 @@ export const PracticeSetupPage: React.FC = () => {
         {(() => {
           const hasServerSessions = Boolean(serverSessionsQuery.data && serverSessionsQuery.data.data.length > 0);
           const rawServerList = serverSessionsQuery.data?.data || [];
-          const query = historySearchQuery.trim().toLowerCase();
-
-          const filteredServerList = query
-            ? rawServerList.filter((s) => (s.title || 'Bài thuyết trình').toLowerCase().includes(query))
-            : rawServerList;
-
-          const filteredLocalList = query
-            ? presentationHistory.filter((e) => (e.review.fileName || 'Bài thuyết trình').toLowerCase().includes(query))
-            : presentationHistory;
-
           const totalCount = hasServerSessions ? rawServerList.length : presentationHistory.length;
-          const displayCount = hasServerSessions ? filteredServerList.length : filteredLocalList.length;
+
+          const unifiedList: UnifiedSession[] = hasServerSessions
+            ? rawServerList.map((s) => {
+                const isProcessing = s.status === 'processing';
+                const isFailed = s.status === 'failed';
+                const minutes = Math.floor(s.duration_seconds / 60).toString().padStart(2, '0');
+                const seconds = (s.duration_seconds % 60).toString().padStart(2, '0');
+                return {
+                  id: s.id,
+                  title: s.title || 'Bài thuyết trình',
+                  badgeSub: `ID: ${s.id.slice(0, 8)}`,
+                  createdAtFormatted: new Intl.DateTimeFormat('vi-VN', { dateStyle: 'medium', timeStyle: 'short' }).format(new Date(s.created_at)),
+                  durationLabel: `${minutes}:${seconds}`,
+                  status: isProcessing ? 'processing' : isFailed ? 'failed' : 'completed',
+                  isProcessing,
+                  isFailed,
+                  onOpen: () => navigate(`/practice/review/${s.id}`),
+                  onDelete: () => void deleteSessionMutation.mutateAsync(s.id),
+                  actionLabel: isProcessing ? 'Theo dõi' : 'Báo cáo',
+                };
+              })
+            : presentationHistory.map((e) => ({
+                id: e.id,
+                title: e.review.fileName || 'Bài thuyết trình',
+                badgeSub: 'Cục bộ',
+                createdAtFormatted: new Intl.DateTimeFormat('vi-VN', { dateStyle: 'medium', timeStyle: 'short' }).format(new Date(e.createdAt)),
+                durationLabel: e.review.duration,
+                status: 'completed' as const,
+                isProcessing: false,
+                isFailed: false,
+                onOpen: () => openHistoryEntry(e),
+                onDelete: () => {
+                  deletePresentationHistoryEntry(e.id);
+                  syncHistory();
+                },
+                actionLabel: 'Báo cáo',
+              }));
 
           return (
-            <Card className="mt-8 border border-slate-200/80 bg-white shadow-xs rounded-2xl overflow-hidden py-0 gap-0" aria-labelledby="presentation-history-title">
-              <CardHeader className="px-5 py-3.5 border-b border-slate-100 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-                <CardTitle id="presentation-history-title" className="text-base font-bold text-[#19345d] flex items-center gap-2">
-                  <History className="size-4.5 text-blue-600" />
-                  Lịch sử phiên thuyết trình
-                </CardTitle>
-                <div className="flex items-center gap-2.5">
-                  <div className="relative w-full sm:w-60">
-                    <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 size-3.5 text-slate-400 pointer-events-none" />
-                    <Input
-                      value={historySearchQuery}
-                      onChange={(e) => setHistorySearchQuery(e.target.value)}
-                      placeholder="Tìm theo tên bài..."
-                      className="pl-8 text-xs h-8.5 bg-slate-50/70 border-slate-200 focus-visible:bg-white focus-visible:ring-blue-600/20"
-                    />
+            <DataTable
+              className="mt-8"
+              header={
+                <div className="flex flex-wrap items-center justify-between gap-3">
+                  <div className="flex items-center gap-3">
+                    <div className="flex size-10 items-center justify-center rounded-xl bg-blue-50 text-blue-600 border border-blue-200/60 shadow-2xs shrink-0">
+                      <History className="size-5" />
+                    </div>
+                    <div>
+                      <h2 id="presentation-history-title" className="text-base font-bold text-[#19345d] flex items-center gap-2.5">
+                        Lịch sử phiên thuyết trình
+                        {totalCount > 0 && (
+                          <Badge variant="secondary" className="px-2.5 py-0.5 text-xs font-semibold tabular-nums bg-slate-100 text-slate-700 border border-slate-200/60">
+                            {totalCount} phiên
+                          </Badge>
+                        )}
+                      </h2>
+                      <p className="mt-0.5 text-xs text-slate-500">
+                        Quản lý, tìm kiếm và xem chi tiết báo cáo đánh giá AI cho các bài luyện tập của bạn.
+                      </p>
+                    </div>
                   </div>
-                  {totalCount > 0 && (
-                    <Badge variant="secondary" className="px-2.5 py-1 text-xs font-semibold tabular-nums whitespace-nowrap bg-slate-100 text-slate-700 border border-slate-200/60">
-                      {totalCount} phiên
-                    </Badge>
-                  )}
                 </div>
-              </CardHeader>
-
-              <CardContent className="p-0">
-                {serverSessionsQuery.isLoading ? (
-                  <div className="p-6 space-y-3">
-                    <div className="flex items-center gap-2 text-xs text-slate-500 mb-2">
-                      <Loader2 className="size-4 animate-spin text-blue-600" />
-                      <span>Đang tải danh sách phiên từ hệ thống máy chủ...</span>
-                    </div>
-                    <Skeleton className="h-14 w-full rounded-xl" />
-                    <Skeleton className="h-14 w-full rounded-xl" />
-                    <Skeleton className="h-14 w-full rounded-xl" />
-                  </div>
-                ) : hasServerSessions ? (
-                  filteredServerList.length > 0 ? (
-                    <div className="overflow-x-auto">
-                      <Table>
-                        <TableHeader className="bg-slate-50/70 border-b border-slate-100">
-                          <TableRow className="hover:bg-transparent">
-                            <TableHead className="w-[40%] min-w-[220px]">Phiên thuyết trình</TableHead>
-                            <TableHead className="w-[20%] min-w-[140px]">
-                              <span className="inline-flex items-center gap-1.5">
-                                <Calendar className="size-3.5 text-slate-400" /> Thời gian
-                              </span>
-                            </TableHead>
-                            <TableHead className="w-[12%] min-w-[100px]">
-                              <span className="inline-flex items-center gap-1.5">
-                                <Clock className="size-3.5 text-slate-400" /> Thời lượng
-                              </span>
-                            </TableHead>
-                            <TableHead className="w-[14%] min-w-[120px] text-center">Trạng thái AI</TableHead>
-                            <TableHead className="w-[14%] min-w-[120px] text-right">Thao tác</TableHead>
-                          </TableRow>
-                        </TableHeader>
-                        <TableBody>
-                          {filteredServerList.map((session) => {
-                            const isProcessing = session.status === 'processing';
-                            const isFailed = session.status === 'failed';
-                            const minutes = Math.floor(session.duration_seconds / 60).toString().padStart(2, '0');
-                            const seconds = (session.duration_seconds % 60).toString().padStart(2, '0');
-                            const durationLabel = `${minutes}:${seconds}`;
-
-                            return (
-                              <TableRow
-                                key={session.id}
-                                onClick={() => navigate(`/practice/review/${session.id}`)}
-                                className="group cursor-pointer hover:bg-blue-50/40 transition-colors"
-                              >
-                                <TableCell>
-                                  <div className="flex items-center gap-3">
-                                    <div className={cn(
-                                      "flex h-9 w-9 shrink-0 items-center justify-center rounded-xl transition-colors",
-                                      isProcessing ? "bg-blue-100 text-blue-700 animate-pulse" : (isFailed ? "bg-rose-100 text-rose-700" : "bg-slate-100 text-slate-600 group-hover:bg-blue-100 group-hover:text-blue-700")
-                                    )}>
-                                      {isProcessing ? <Loader2 className="size-4 animate-spin" /> : <FileText className="size-4" />}
-                                    </div>
-                                    <div className="min-w-0">
-                                      <p className="truncate text-sm font-semibold text-slate-900 group-hover:text-blue-700 transition-colors">
-                                        {session.title || 'Bài thuyết trình'}
-                                      </p>
-                                      <p className="text-[11px] text-slate-400 font-mono">
-                                        ID: {session.id.slice(0, 8)}
-                                      </p>
-                                    </div>
-                                  </div>
-                                </TableCell>
-                                <TableCell>
-                                  <span className="text-xs text-slate-600">
-                                    {new Intl.DateTimeFormat('vi-VN', { dateStyle: 'medium', timeStyle: 'short' }).format(new Date(session.created_at))}
-                                  </span>
-                                </TableCell>
-                                <TableCell>
-                                  <span className="text-xs font-mono font-medium text-slate-700 tabular-nums">
-                                    {durationLabel}
-                                  </span>
-                                </TableCell>
-                                <TableCell className="text-center">
-                                  {isProcessing ? (
-                                    <Badge variant="outline" className="border-blue-200 bg-blue-50 text-blue-700 text-xs font-medium py-0.5 px-2.5">
-                                      Đang phân tích
-                                    </Badge>
-                                  ) : isFailed ? (
-                                    <Badge variant="outline" className="border-rose-200 bg-rose-50 text-rose-700 text-xs font-medium py-0.5 px-2.5">
-                                      Cần chấm lại
-                                    </Badge>
-                                  ) : (
-                                    <Badge variant="outline" className="border-emerald-200 bg-emerald-50 text-emerald-700 text-xs font-medium py-0.5 px-2.5">
-                                      Hoàn thành
-                                    </Badge>
-                                  )}
-                                </TableCell>
-                                <TableCell className="text-right">
-                                  <div className="flex items-center justify-end gap-1" onClick={(e) => e.stopPropagation()}>
-                                    <Button
-                                      variant="ghost"
-                                      size="sm"
-                                      onClick={() => navigate(`/practice/review/${session.id}`)}
-                                      className="h-8 px-2.5 text-xs font-semibold text-blue-700 hover:text-blue-800 hover:bg-blue-50"
-                                    >
-                                      {isProcessing ? 'Theo dõi' : 'Báo cáo'} <ArrowRight className="size-3.5 ml-1" />
-                                    </Button>
-                                    <Button
-                                      variant="ghost"
-                                      size="icon"
-                                      onClick={() => void deleteSessionMutation.mutateAsync(session.id)}
-                                      title="Xóa phiên này"
-                                      aria-label={`Xóa bài ${session.title || 'thuyết trình'}`}
-                                      className="size-8 text-slate-400 hover:text-rose-600 hover:bg-rose-50 cursor-pointer"
-                                    >
-                                      <Trash2 className="size-3.5" />
-                                    </Button>
-                                  </div>
-                                </TableCell>
-                              </TableRow>
-                            );
-                          })}
-                        </TableBody>
-                      </Table>
-                    </div>
-                  ) : (
-                    <div className="py-12 text-center text-slate-500">
-                      <Search className="size-8 mx-auto text-slate-300 mb-2" />
-                      <p className="text-sm font-semibold text-slate-700">Không tìm thấy phiên nào</p>
-                      <p className="text-xs text-slate-400 mt-0.5">Không có phiên thuyết trình nào khớp với từ khóa "{historySearchQuery}".</p>
-                    </div>
-                  )
-                ) : presentationHistory.length > 0 ? (
-                  filteredLocalList.length > 0 ? (
-                    <div className="overflow-x-auto">
-                      <Table>
-                        <TableHeader className="bg-slate-50/70 border-b border-slate-100">
-                          <TableRow className="hover:bg-transparent">
-                            <TableHead className="w-[40%] min-w-[220px]">Phiên thuyết trình</TableHead>
-                            <TableHead className="w-[20%] min-w-[140px]">
-                              <span className="inline-flex items-center gap-1.5">
-                                <Calendar className="size-3.5 text-slate-400" /> Thời gian
-                              </span>
-                            </TableHead>
-                            <TableHead className="w-[12%] min-w-[100px]">
-                              <span className="inline-flex items-center gap-1.5">
-                                <Clock className="size-3.5 text-slate-400" /> Thời lượng
-                              </span>
-                            </TableHead>
-                            <TableHead className="w-[14%] min-w-[120px] text-center">Trạng thái</TableHead>
-                            <TableHead className="w-[14%] min-w-[120px] text-right">Thao tác</TableHead>
-                          </TableRow>
-                        </TableHeader>
-                        <TableBody>
-                          {filteredLocalList.map((entry) => (
-                            <TableRow
-                              key={entry.id}
-                              onClick={() => openHistoryEntry(entry)}
-                              className="group cursor-pointer hover:bg-blue-50/40 transition-colors"
-                            >
-                              <TableCell>
-                                <div className="flex items-center gap-3">
-                                  <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-slate-100 text-slate-600 group-hover:bg-blue-100 group-hover:text-blue-700 transition-colors">
-                                    <FileText className="size-4" />
-                                  </div>
-                                  <div className="min-w-0">
-                                    <p className="truncate text-sm font-semibold text-slate-900 group-hover:text-blue-700 transition-colors">
-                                      {entry.review.fileName || 'Bài thuyết trình'}
-                                    </p>
-                                    <p className="text-[11px] text-slate-400 font-mono">
-                                      Cục bộ
-                                    </p>
-                                  </div>
-                                </div>
-                              </TableCell>
-                              <TableCell>
-                                <span className="text-xs text-slate-600">
-                                  {new Intl.DateTimeFormat('vi-VN', { dateStyle: 'medium', timeStyle: 'short' }).format(new Date(entry.createdAt))}
-                                </span>
-                              </TableCell>
-                              <TableCell>
-                                <span className="text-xs font-mono font-medium text-slate-700 tabular-nums">
-                                  {entry.review.duration}
-                                </span>
-                              </TableCell>
-                              <TableCell className="text-center">
-                                <Badge variant="outline" className="border-emerald-200 bg-emerald-50 text-emerald-700 text-xs font-medium py-0.5 px-2.5">
-                                  Hoàn thành
-                                </Badge>
-                              </TableCell>
-                              <TableCell className="text-right">
-                                <div className="flex items-center justify-end gap-1" onClick={(e) => e.stopPropagation()}>
-                                  <Button
-                                    variant="ghost"
-                                    size="sm"
-                                    onClick={() => openHistoryEntry(entry)}
-                                    className="h-8 px-2.5 text-xs font-semibold text-blue-700 hover:text-blue-800 hover:bg-blue-50"
-                                  >
-                                    Báo cáo <ArrowRight className="size-3.5 ml-1" />
-                                  </Button>
-                                  <Button
-                                    variant="ghost"
-                                    size="icon"
-                                    onClick={() => {
-                                      deletePresentationHistoryEntry(entry.id);
-                                      syncHistory();
-                                    }}
-                                    title="Xóa phiên này"
-                                    aria-label={`Xóa phiên ${entry.review.fileName || 'thuyết trình'}`}
-                                    className="size-8 text-slate-400 hover:text-rose-600 hover:bg-rose-50 cursor-pointer"
-                                  >
-                                    <Trash2 className="size-3.5" />
-                                  </Button>
-                                </div>
-                              </TableCell>
-                            </TableRow>
-                          ))}
-                        </TableBody>
-                      </Table>
-                    </div>
-                  ) : (
-                    <div className="py-12 text-center text-slate-500">
-                      <Search className="size-8 mx-auto text-slate-300 mb-2" />
-                      <p className="text-sm font-semibold text-slate-700">Không tìm thấy phiên nào</p>
-                      <p className="text-xs text-slate-400 mt-0.5">Không có phiên thuyết trình nào khớp với từ khóa "{historySearchQuery}".</p>
-                    </div>
-                  )
-                ) : (
+              }
+              columns={historyColumns}
+              data={unifiedList}
+              searchKey="title"
+              searchPlaceholder="Tìm theo tên bài..."
+              facetedFilters={statusFacetedFilters}
+              enableRowSelection={false}
+              enableColumnVisibility={true}
+              enablePagination={true}
+              pageSize={5}
+              pageSizeOptions={[5, 10, 20, 50]}
+              isLoading={serverSessionsQuery.isLoading}
+              onRowClick={(item) => item.onOpen()}
+              emptyState={
+                totalCount === 0 ? (
                   <div className="py-12 px-4 text-center">
                     <div className="mx-auto flex size-12 items-center justify-center rounded-2xl bg-slate-100 text-slate-500 mb-3 border border-slate-200/60">
                       <History className="size-6 text-slate-400" />
@@ -903,15 +834,15 @@ export const PracticeSetupPage: React.FC = () => {
                       Sau khi hoàn thành bài thuyết trình, toàn bộ dữ liệu ghi nhận và phân tích AI sẽ xuất hiện tại bảng này.
                     </p>
                   </div>
-                )}
-              </CardContent>
-
-              <CardFooter className="border-t border-slate-100 bg-slate-50/50 px-5 py-2.5 text-xs text-slate-500">
-                <span>
-                  Hiển thị <strong className="text-slate-800 font-semibold">{displayCount}</strong> / {totalCount} phiên gần nhất
-                </span>
-              </CardFooter>
-            </Card>
+                ) : (
+                  <div className="py-12 text-center text-slate-500">
+                    <Search className="size-8 mx-auto text-slate-300 mb-2" />
+                    <p className="text-sm font-semibold text-slate-700">Không tìm thấy phiên nào</p>
+                    <p className="text-xs text-slate-400 mt-0.5">Không có phiên thuyết trình nào khớp với bộ lọc hiện tại.</p>
+                  </div>
+                )
+              }
+            />
           );
         })()}
       </div>

@@ -65,6 +65,195 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/community/feed": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Fetch the paginated community feed ("for_you" or "following") with optional topic filter */
+        get: operations["v1.community.feed"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/community/topics": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List active soft-skill topic tags ordered by popularity */
+        get: operations["v1.community.topics"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/community/search": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Search published root posts using MySQL InnoDB full-text search */
+        get: operations["v1.community.search"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/community/posts/{post}/reactions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Toggle a like or bookmark reaction on a community post */
+        post: operations["v1.community.posts.reactions"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/community/posts/{post}/repost": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Toggle a pure repost on a community post */
+        post: operations["v1.community.posts.repost"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/community/polls/{poll}/vote": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Cast or switch a vote on a community poll */
+        post: operations["v1.community.polls.vote"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/community/users/{user}/follow": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Toggle following another user in the community */
+        post: operations["v1.community.users.follow"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/community/posts": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Create a new community post or multi-part self-thread */
+        post: operations["v1.community.posts.store"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/community/posts/{post}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Show a thread detail with ancestors, self-thread chain, and 2-level reply tree */
+        get: operations["v1.community.posts.show"];
+        put?: never;
+        post?: never;
+        /** Soft-delete a post owned by the authenticated user */
+        delete: operations["v1.community.posts.destroy"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/community/posts/{post}/replies": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Lazy-load direct replies for a specific post branch */
+        get: operations["v1.community.posts.replies"];
+        put?: never;
+        /** Create a reply under a post or comment node */
+        post: operations["v1.community.posts.replies.store"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/community/posts/{post}/hide-reply": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /** Toggle hiding a reply by the root post author */
+        patch: operations["v1.community.posts.hide-reply"];
+        trace?: never;
+    };
     "/v1/ai/conversations": {
         parameters: {
             query?: never;
@@ -193,8 +382,77 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Evaluate a slide presentation delivery and return 4-pillar structured feedback */
+        /** Accept a presentation submission, store private audio, create session, and dispatch background job */
         post: operations["v1.ai.presentation.evaluate"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/presentation/sessions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List all presentation sessions belonging to the authenticated user */
+        get: operations["v1.presentation.sessions.index"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/presentation/sessions/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Show details of a specific presentation session */
+        get: operations["v1.presentation.sessions.show"];
+        put?: never;
+        post?: never;
+        /** Delete a presentation session and its audio file */
+        delete: operations["v1.presentation.sessions.destroy"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/presentation/sessions/{id}/retry": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Retry an evaluation job for a failed session */
+        post: operations["v1.presentation.sessions.retry"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/presentation/sessions/{id}/audio": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Safely stream the recorded audio file to the owner */
+        get: operations["v1.presentation.sessions.audio"];
+        put?: never;
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -354,17 +612,28 @@ export interface components {
             /** Format: uuid */
             conversation_id?: string | null;
         };
+        /**
+         * CommunityReactionType
+         * @enum {string}
+         */
+        CommunityReactionType: "like" | "bookmark";
         /** EvaluatePresentationRequest */
         EvaluatePresentationRequest: {
-            slide_content: string;
-            transcript: string;
+            /**
+             * Format: binary
+             * @description Maximum file size: 25600 kilobytes.
+             */
+            audio?: string | null;
+            slide_content?: string | null;
+            title?: string | null;
             duration: string;
-            words_per_minute: number;
-            fillers_count: number;
             eye_contact_percent: number;
             posture_score: number;
             /** @enum {string|null} */
             language?: "vi" | "en" | null;
+            transcript?: string | null;
+            words_per_minute?: number | null;
+            fillers_count?: number | null;
         };
         /** ForgotPasswordRequest */
         ForgotPasswordRequest: {
@@ -385,6 +654,38 @@ export interface components {
             password: string;
             device_name?: string | null;
         };
+        /** PresentationSession */
+        PresentationSession: {
+            id: string;
+            user_id: number;
+            status: string;
+            error_message: string | null;
+            title: string | null;
+            slide_content: string | null;
+            duration_seconds: number;
+            audio_path: string | null;
+            overall_score: number | null;
+            words_per_minute: number | null;
+            fillers_count: number | null;
+            eye_contact_percent: number;
+            posture_score: number;
+            slide_coverage_score: number | null;
+            is_reading_slides: boolean | null;
+            elaboration_quality: string | null;
+            voice_feedback: string | null;
+            body_language_feedback: string | null;
+            transcript: string | null;
+            strengths: unknown[] | null;
+            improvements: unknown[] | null;
+            actionable_tips: unknown[] | null;
+            language: string;
+            /** Format: date-time */
+            started_processing_at: string | null;
+            /** Format: date-time */
+            created_at: string | null;
+            /** Format: date-time */
+            updated_at: string | null;
+        };
         /** RegisterRequest */
         RegisterRequest: {
             name: string;
@@ -395,6 +696,11 @@ export interface components {
             login_after_registration?: boolean;
             password_confirmation: string;
         };
+        /**
+         * ReplyControl
+         * @enum {string}
+         */
+        ReplyControl: "everyone" | "followers" | "following" | "mentioned_only" | "locked";
         /** ResetPasswordRequest */
         ResetPasswordRequest: {
             token: string;
@@ -402,6 +708,28 @@ export interface components {
             email: string;
             password: string;
             password_confirmation: string;
+        };
+        /** StoreCommunityPostRequest */
+        StoreCommunityPostRequest: {
+            items: {
+                body: string;
+            }[];
+            topic_tag_id?: number | null;
+            reply_control?: components["schemas"]["ReplyControl"] | null;
+            poll?: {
+                question?: string | null;
+                options?: string[];
+                /** @enum {integer|null} */
+                expires_in_hours?: "24" | "72" | "168" | null;
+            };
+        };
+        /** StoreCommunityReplyRequest */
+        StoreCommunityReplyRequest: {
+            body: string;
+        };
+        /** ToggleReactionRequest */
+        ToggleReactionRequest: {
+            type: components["schemas"]["CommunityReactionType"];
         };
         /** UserResource */
         UserResource: {
@@ -412,6 +740,10 @@ export interface components {
             avatar_url: string | null;
             roles: string[];
             created_at: string | null;
+        };
+        /** VotePollRequest */
+        VotePollRequest: {
+            option_id: number;
         };
     };
     responses: {
@@ -455,6 +787,18 @@ export interface components {
                 };
             };
         };
+        /** @description Authorization error */
+        AuthorizationException: {
+            headers: {
+                [name: string]: unknown;
+            };
+            content: {
+                "application/json": {
+                    /** @description Error overview. */
+                    message: string;
+                };
+            };
+        };
     };
     parameters: never;
     requestBodies: never;
@@ -488,6 +832,811 @@ export interface operations {
             401: components["responses"]["AuthenticationException"];
             404: components["responses"]["ModelNotFoundException"];
             422: components["responses"]["ValidationException"];
+        };
+    };
+    "v1.community.feed": {
+        parameters: {
+            query?: {
+                limit?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        data: string;
+                        meta: {
+                            next_cursor: string;
+                            has_more: string;
+                        };
+                    };
+                };
+            };
+            401: components["responses"]["AuthenticationException"];
+        };
+    };
+    "v1.community.topics": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        data: {
+                            id: number;
+                            slug: string;
+                            name: string;
+                            description: string | null;
+                            color_token: string;
+                            posts_count: number;
+                        }[];
+                    };
+                };
+            };
+            401: components["responses"]["AuthenticationException"];
+        };
+    };
+    "v1.community.search": {
+        parameters: {
+            query?: {
+                limit?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        data: string;
+                    } | {
+                        data: string[];
+                    };
+                };
+            };
+            401: components["responses"]["AuthenticationException"];
+        };
+    };
+    "v1.community.posts.reactions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description The post ID */
+                post: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ToggleReactionRequest"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        data: {
+                            post_id: number;
+                            type: string;
+                            active: string;
+                            likes_count: string;
+                        };
+                    };
+                };
+            };
+            401: components["responses"]["AuthenticationException"];
+            404: components["responses"]["ModelNotFoundException"];
+            422: components["responses"]["ValidationException"];
+        };
+    };
+    "v1.community.posts.repost": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description The post ID */
+                post: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        data: {
+                            post_id: number;
+                            active: string;
+                            reposts_count: string;
+                        };
+                    };
+                };
+            };
+            401: components["responses"]["AuthenticationException"];
+            404: components["responses"]["ModelNotFoundException"];
+        };
+    };
+    "v1.community.polls.vote": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description The poll ID */
+                poll: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["VotePollRequest"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        data: {
+                            poll_id: number;
+                            selected_option_id: number;
+                            total_votes: number;
+                            options: {
+                                id: number;
+                                label: string;
+                                votes_count: number;
+                                sort_order: number;
+                            }[];
+                        };
+                    };
+                };
+            };
+            401: components["responses"]["AuthenticationException"];
+            404: components["responses"]["ModelNotFoundException"];
+            422: components["responses"]["ValidationException"];
+        };
+    };
+    "v1.community.users.follow": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description The user ID */
+                user: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        data: {
+                            user_id: number;
+                            following: string;
+                        };
+                    };
+                };
+            };
+            401: components["responses"]["AuthenticationException"];
+            404: components["responses"]["ModelNotFoundException"];
+        };
+    };
+    "v1.community.posts.store": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["StoreCommunityPostRequest"];
+            };
+        };
+        responses: {
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        data: {
+                            id: number;
+                            root_id: number | null;
+                            parent_id: number | null;
+                            thread_group_id: number | null;
+                            depth: number;
+                            body: string | null;
+                            reply_control: string;
+                            status: string;
+                            is_hidden_by_author: boolean;
+                            likes_count: number;
+                            replies_count: number;
+                            reposts_count: number;
+                            quotes_count: number;
+                            hot_score: string;
+                            created_at: string | null;
+                            author: {
+                                id: number;
+                                name: string;
+                                username: string;
+                                headline: string | null;
+                                avatar_url: string | null;
+                            } | null;
+                            topic_tag: {
+                                id: number;
+                                slug: string;
+                                name: string;
+                                description: string | null;
+                                color_token: string;
+                                posts_count: number;
+                            } | null;
+                            poll: {
+                                id: number;
+                                question: string | null;
+                                expires_at: string | null;
+                                total_votes: number;
+                                viewer_selected_option_id: number | null;
+                                options: {
+                                    id: number;
+                                    label: string;
+                                    votes_count: number;
+                                    sort_order: number;
+                                }[];
+                            };
+                            repost_of: {
+                                [key: string]: unknown;
+                            };
+                            quote_post: {
+                                [key: string]: unknown;
+                            };
+                            self_thread_items: {
+                                [key: string]: unknown;
+                            }[];
+                            viewer: {
+                                liked: boolean;
+                                bookmarked: boolean;
+                                reposted: boolean;
+                            };
+                        };
+                    };
+                };
+            };
+            401: components["responses"]["AuthenticationException"];
+            422: components["responses"]["ValidationException"];
+        };
+    };
+    "v1.community.posts.show": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description The post ID */
+                post: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        data: {
+                            post: {
+                                id: number;
+                                root_id: number | null;
+                                parent_id: number | null;
+                                thread_group_id: number | null;
+                                depth: number;
+                                body: string | null;
+                                reply_control: string;
+                                status: string;
+                                is_hidden_by_author: boolean;
+                                likes_count: number;
+                                replies_count: number;
+                                reposts_count: number;
+                                quotes_count: number;
+                                hot_score: string;
+                                created_at: string | null;
+                                author: {
+                                    id: number;
+                                    name: string;
+                                    username: string;
+                                    headline: string | null;
+                                    avatar_url: string | null;
+                                } | null;
+                                topic_tag: {
+                                    id: number;
+                                    slug: string;
+                                    name: string;
+                                    description: string | null;
+                                    color_token: string;
+                                    posts_count: number;
+                                } | null;
+                                poll: {
+                                    id: number;
+                                    question: string | null;
+                                    expires_at: string | null;
+                                    total_votes: number;
+                                    viewer_selected_option_id: number | null;
+                                    options: {
+                                        id: number;
+                                        label: string;
+                                        votes_count: number;
+                                        sort_order: number;
+                                    }[];
+                                };
+                                repost_of: {
+                                    [key: string]: unknown;
+                                };
+                                quote_post: {
+                                    [key: string]: unknown;
+                                };
+                                self_thread_items: {
+                                    [key: string]: unknown;
+                                }[];
+                                viewer: {
+                                    liked: boolean;
+                                    bookmarked: boolean;
+                                    reposted: boolean;
+                                };
+                            };
+                            ancestors: {
+                                id: number;
+                                root_id: number | null;
+                                parent_id: number | null;
+                                thread_group_id: number | null;
+                                depth: number;
+                                body: string | null;
+                                reply_control: string;
+                                status: string;
+                                is_hidden_by_author: boolean;
+                                likes_count: number;
+                                replies_count: number;
+                                reposts_count: number;
+                                quotes_count: number;
+                                hot_score: string;
+                                created_at: string | null;
+                                author: {
+                                    id: number;
+                                    name: string;
+                                    username: string;
+                                    headline: string | null;
+                                    avatar_url: string | null;
+                                } | null;
+                                topic_tag: {
+                                    id: number;
+                                    slug: string;
+                                    name: string;
+                                    description: string | null;
+                                    color_token: string;
+                                    posts_count: number;
+                                } | null;
+                                poll: {
+                                    id: number;
+                                    question: string | null;
+                                    expires_at: string | null;
+                                    total_votes: number;
+                                    viewer_selected_option_id: number | null;
+                                    options: {
+                                        id: number;
+                                        label: string;
+                                        votes_count: number;
+                                        sort_order: number;
+                                    }[];
+                                };
+                                repost_of: {
+                                    [key: string]: unknown;
+                                };
+                                quote_post: {
+                                    [key: string]: unknown;
+                                };
+                                self_thread_items: {
+                                    [key: string]: unknown;
+                                }[];
+                                viewer: {
+                                    liked: boolean;
+                                    bookmarked: boolean;
+                                    reposted: boolean;
+                                };
+                            }[];
+                            self_thread_items: {
+                                id: number;
+                                root_id: number | null;
+                                parent_id: number | null;
+                                thread_group_id: number | null;
+                                depth: number;
+                                body: string | null;
+                                reply_control: string;
+                                status: string;
+                                is_hidden_by_author: boolean;
+                                likes_count: number;
+                                replies_count: number;
+                                reposts_count: number;
+                                quotes_count: number;
+                                hot_score: string;
+                                created_at: string | null;
+                                author: {
+                                    id: number;
+                                    name: string;
+                                    username: string;
+                                    headline: string | null;
+                                    avatar_url: string | null;
+                                } | null;
+                                topic_tag: {
+                                    id: number;
+                                    slug: string;
+                                    name: string;
+                                    description: string | null;
+                                    color_token: string;
+                                    posts_count: number;
+                                } | null;
+                                poll: {
+                                    id: number;
+                                    question: string | null;
+                                    expires_at: string | null;
+                                    total_votes: number;
+                                    viewer_selected_option_id: number | null;
+                                    options: {
+                                        id: number;
+                                        label: string;
+                                        votes_count: number;
+                                        sort_order: number;
+                                    }[];
+                                };
+                                repost_of: {
+                                    [key: string]: unknown;
+                                };
+                                quote_post: {
+                                    [key: string]: unknown;
+                                };
+                                self_thread_items: {
+                                    [key: string]: unknown;
+                                }[];
+                                viewer: {
+                                    liked: boolean;
+                                    bookmarked: boolean;
+                                    reposted: boolean;
+                                };
+                            }[];
+                            replies: {
+                                id: number;
+                                root_id: number | null;
+                                parent_id: number | null;
+                                thread_group_id: number | null;
+                                depth: number;
+                                body: string | null;
+                                reply_control: string;
+                                status: string;
+                                is_hidden_by_author: boolean;
+                                likes_count: number;
+                                replies_count: number;
+                                reposts_count: number;
+                                quotes_count: number;
+                                hot_score: string;
+                                created_at: string | null;
+                                author: {
+                                    id: number;
+                                    name: string;
+                                    username: string;
+                                    headline: string | null;
+                                    avatar_url: string | null;
+                                } | null;
+                                topic_tag: {
+                                    id: number;
+                                    slug: string;
+                                    name: string;
+                                    description: string | null;
+                                    color_token: string;
+                                    posts_count: number;
+                                } | null;
+                                poll: {
+                                    id: number;
+                                    question: string | null;
+                                    expires_at: string | null;
+                                    total_votes: number;
+                                    viewer_selected_option_id: number | null;
+                                    options: {
+                                        id: number;
+                                        label: string;
+                                        votes_count: number;
+                                        sort_order: number;
+                                    }[];
+                                };
+                                repost_of: {
+                                    [key: string]: unknown;
+                                };
+                                quote_post: {
+                                    [key: string]: unknown;
+                                };
+                                self_thread_items: {
+                                    [key: string]: unknown;
+                                }[];
+                                viewer: {
+                                    liked: boolean;
+                                    bookmarked: boolean;
+                                    reposted: boolean;
+                                };
+                            }[];
+                        };
+                    };
+                };
+            };
+            401: components["responses"]["AuthenticationException"];
+            404: components["responses"]["ModelNotFoundException"];
+        };
+    };
+    "v1.community.posts.destroy": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description The post ID */
+                post: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /** @constant */
+                        message: "Đã xóa bài viết.";
+                    };
+                };
+            };
+            401: components["responses"]["AuthenticationException"];
+            403: components["responses"]["AuthorizationException"];
+            404: components["responses"]["ModelNotFoundException"];
+        };
+    };
+    "v1.community.posts.replies": {
+        parameters: {
+            query?: {
+                limit?: number;
+            };
+            header?: never;
+            path: {
+                /** @description The post ID */
+                post: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        data: {
+                            id: number;
+                            root_id: number | null;
+                            parent_id: number | null;
+                            thread_group_id: number | null;
+                            depth: number;
+                            body: string | null;
+                            reply_control: string;
+                            status: string;
+                            is_hidden_by_author: boolean;
+                            likes_count: number;
+                            replies_count: number;
+                            reposts_count: number;
+                            quotes_count: number;
+                            hot_score: string;
+                            created_at: string | null;
+                            author: {
+                                id: number;
+                                name: string;
+                                username: string;
+                                headline: string | null;
+                                avatar_url: string | null;
+                            } | null;
+                            topic_tag: {
+                                id: number;
+                                slug: string;
+                                name: string;
+                                description: string | null;
+                                color_token: string;
+                                posts_count: number;
+                            } | null;
+                            poll: {
+                                id: number;
+                                question: string | null;
+                                expires_at: string | null;
+                                total_votes: number;
+                                viewer_selected_option_id: number | null;
+                                options: {
+                                    id: number;
+                                    label: string;
+                                    votes_count: number;
+                                    sort_order: number;
+                                }[];
+                            };
+                            repost_of: {
+                                [key: string]: unknown;
+                            };
+                            quote_post: {
+                                [key: string]: unknown;
+                            };
+                            self_thread_items: {
+                                [key: string]: unknown;
+                            }[];
+                            viewer: {
+                                liked: boolean;
+                                bookmarked: boolean;
+                                reposted: boolean;
+                            };
+                        }[];
+                        meta: {
+                            next_cursor: string | null;
+                            has_more: boolean;
+                        };
+                    };
+                };
+            };
+            401: components["responses"]["AuthenticationException"];
+            404: components["responses"]["ModelNotFoundException"];
+        };
+    };
+    "v1.community.posts.replies.store": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description The post ID */
+                post: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["StoreCommunityReplyRequest"];
+            };
+        };
+        responses: {
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        data: {
+                            id: number;
+                            root_id: number | null;
+                            parent_id: number | null;
+                            thread_group_id: number | null;
+                            depth: number;
+                            body: string | null;
+                            reply_control: string;
+                            status: string;
+                            is_hidden_by_author: boolean;
+                            likes_count: number;
+                            replies_count: number;
+                            reposts_count: number;
+                            quotes_count: number;
+                            hot_score: string;
+                            created_at: string | null;
+                            author: {
+                                id: number;
+                                name: string;
+                                username: string;
+                                headline: string | null;
+                                avatar_url: string | null;
+                            } | null;
+                            topic_tag: {
+                                id: number;
+                                slug: string;
+                                name: string;
+                                description: string | null;
+                                color_token: string;
+                                posts_count: number;
+                            } | null;
+                            poll: {
+                                id: number;
+                                question: string | null;
+                                expires_at: string | null;
+                                total_votes: number;
+                                viewer_selected_option_id: number | null;
+                                options: {
+                                    id: number;
+                                    label: string;
+                                    votes_count: number;
+                                    sort_order: number;
+                                }[];
+                            };
+                            repost_of: {
+                                [key: string]: unknown;
+                            };
+                            quote_post: {
+                                [key: string]: unknown;
+                            };
+                            self_thread_items: {
+                                [key: string]: unknown;
+                            }[];
+                            viewer: {
+                                liked: boolean;
+                                bookmarked: boolean;
+                                reposted: boolean;
+                            };
+                        };
+                    };
+                };
+            };
+            401: components["responses"]["AuthenticationException"];
+            403: components["responses"]["AuthorizationException"];
+            404: components["responses"]["ModelNotFoundException"];
+            422: components["responses"]["ValidationException"];
+        };
+    };
+    "v1.community.posts.hide-reply": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description The post ID */
+                post: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        data: {
+                            id: number;
+                            is_hidden_by_author: boolean;
+                        };
+                    };
+                };
+            };
+            401: components["responses"]["AuthenticationException"];
+            403: components["responses"]["AuthorizationException"];
+            404: components["responses"]["ModelNotFoundException"];
         };
     };
     "v1.ai.conversations.index": {
@@ -768,9 +1917,40 @@ export interface operations {
         };
         requestBody: {
             content: {
-                "application/json": components["schemas"]["EvaluatePresentationRequest"];
+                "multipart/form-data": components["schemas"]["EvaluatePresentationRequest"];
             };
         };
+        responses: {
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /** @constant */
+                        message: "Bài thuyết trình đã được tiếp nhận và đang được AI phân tích ngầm.";
+                        data: {
+                            id: string;
+                            status: string;
+                            created_at: string | null;
+                        };
+                    };
+                };
+            };
+            401: components["responses"]["AuthenticationException"];
+            422: components["responses"]["ValidationException"];
+        };
+    };
+    "v1.presentation.sessions.index": {
+        parameters: {
+            query?: {
+                per_page?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
         responses: {
             200: {
                 headers: {
@@ -778,36 +1958,130 @@ export interface operations {
                 };
                 content: {
                     "application/json": {
-                        data: {
-                            [key: string]: unknown;
-                        };
+                        current_page: number;
+                        data: components["schemas"]["PresentationSession"][];
+                        first_page_url: string | null;
+                        from: number | null;
+                        last_page_url: string | null;
+                        last_page: number;
+                        /** @description Generated paginator links. */
+                        links: {
+                            url: string | null;
+                            label: string;
+                            active: boolean;
+                        }[];
+                        next_page_url: string | null;
+                        /** @description Base path for paginator generated URLs. */
+                        path: string | null;
+                        /** @description Number of items shown per page. */
+                        per_page: number;
+                        prev_page_url: string | null;
+                        /** @description Number of the last item in the slice. */
+                        to: number | null;
+                        /** @description Total number of items being paginated. */
+                        total: number;
                     };
                 };
             };
             401: components["responses"]["AuthenticationException"];
-            422: components["responses"]["ValidationException"];
-            429: {
+        };
+    };
+    "v1.presentation.sessions.show": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        data: string;
+                    };
+                };
+            };
+            401: components["responses"]["AuthenticationException"];
+        };
+    };
+    "v1.presentation.sessions.destroy": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
                 headers: {
                     [name: string]: unknown;
                 };
                 content: {
                     "application/json": {
                         /** @constant */
-                        message: "Trợ lý AI đang bận. Vui lòng thử lại sau ít phút.";
+                        message: "Đã xóa bài thuyết trình thành công.";
                     };
                 };
             };
-            502: {
+            401: components["responses"]["AuthenticationException"];
+        };
+    };
+    "v1.presentation.sessions.retry": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            202: {
                 headers: {
                     [name: string]: unknown;
                 };
                 content: {
                     "application/json": {
                         /** @constant */
-                        message: "Trợ lý AI tạm thời không phản hồi. Vui lòng thử lại.";
+                        message: "Đã gửi lại bài thuyết trình vào hàng đợi chấm điểm AI.";
+                        data: string;
                     };
                 };
             };
+            401: components["responses"]["AuthenticationException"];
+        };
+    };
+    "v1.presentation.sessions.audio": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/octet-stream": string;
+                };
+            };
+            401: components["responses"]["AuthenticationException"];
+            404: components["responses"]["ModelNotFoundException"];
         };
     };
     "v1.auth.refresh": {

@@ -26,6 +26,7 @@ class PresentationSession extends Model
         'title',
         'slide_content',
         'duration_seconds',
+        'audio_duration_seconds',
         'audio_path',
         'overall_score',
         'words_per_minute',
@@ -66,6 +67,14 @@ class PresentationSession extends Model
             'actionable_tips' => 'array',
             'started_processing_at' => 'datetime',
         ];
+    }
+
+    /**
+     * Set duration seconds when audio_duration_seconds is used.
+     */
+    public function setAudioDurationSecondsAttribute(mixed $value): void
+    {
+        $this->attributes['duration_seconds'] = $value;
     }
 
     /**

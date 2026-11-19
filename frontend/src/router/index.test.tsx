@@ -1,9 +1,20 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, fireEvent, render, screen } from '@testing-library/react';
-import { createMemoryRouter } from 'react-router';
-import { RouterProvider } from 'react-router/dom';
+import { createMemoryRouter, RouterProvider } from 'react-router';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { routes } from './index';
+
+vi.mock('@/core/api/client', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@/core/api/client')>();
+  return {
+    ...actual,
+    api: {
+      ...actual.api,
+      get: vi.fn().mockRejectedValue(new Error('Unauthenticated')),
+      post: vi.fn().mockRejectedValue(new Error('Unauthenticated')),
+    },
+  };
+});
 
 function renderAt(path: string) {
   const queryClient = new QueryClient({
@@ -60,5 +71,16 @@ describe('router', () => {
     renderAt('/reset-password');
 
     expect(screen.getByText(/Liên kết không hợp lệ/i)).toBeTruthy();
+  });
+
+  it('renders the 404 page for unknown routes instead of redirecting to login', async () => {
+    const router = renderAt('/non-existent-page-xyz');
+
+    expect(router.state.location.pathname).toBe('/non-existent-page-xyz');
+    expect(await screen.findByRole('heading', { level: 1, name: /page not found/i })).toBeTruthy();
+    expect(
+      screen.getByText("We couldn't find the page you are looking for")
+    ).toBeTruthy();
+    expect(screen.getByRole('button', { name: /back to home page/i })).toBeTruthy();
   });
 });

@@ -163,6 +163,7 @@ class EvaluatePresentationJob implements ShouldQueue
         $promptParts = [
             "THÔNG SỐ PHIÊN THUYẾT TRÌNH:\n- Ngôn ngữ trình bày: {$langLabel}\n- Thời lượng: {$agent->duration}\n- Tỉ lệ giao tiếp mắt: {$agent->eyeContactPercent}%\n- Điểm tư thế: {$agent->postureScore}/100",
             "NỘI DUNG TRÊN CÁC TRANG SLIDE:\n<<<\n{$agent->slideContent}\n>>>",
+            "LƯU Ý QUAN TRỌNG VỀ ÂM THANH:\nHãy lắng nghe tệp âm thanh đính kèm để trích xuất lời nói thực tế của sinh viên. Nếu tệp âm thanh hoàn toàn im lặng, chỉ có tiếng sôi rè/tạp âm nền hoặc không có tiếng người nói, TUYỆT ĐỐI KHÔNG ĐƯỢC tự bịa đặt lời nói dựa trên slide. Hãy tuân thủ nghiêm ngặt quy tắc zero-speech: trả về transcript rỗng, words_per_minute = 0, slide_coverage_score = 0, và thông báo không phát hiện giọng nói trong voice_feedback.",
         ];
 
         if ($agent->wordsPerMinute !== null && $agent->wordsPerMinute > 0) {

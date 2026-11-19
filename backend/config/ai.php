@@ -19,7 +19,24 @@ return [
     'default_for_transcription' => 'openai',
     'default_for_embeddings' => 'openai',
     'default_for_reranking' => 'cohere',
-    'default_for_classification' => 'typesafe',
+    'default_for_classification' => env('AI_CLASSIFICATION_PROVIDER', 'gemini-decisions'),
+
+    /*
+    |--------------------------------------------------------------------------
+    | Preflight Guardrail
+    |--------------------------------------------------------------------------
+    |
+    | Fast non-generative classification gate used to detect prompt injection,
+    | spam, and out-of-scope inputs before invoking generative agents.
+    |
+    */
+
+    'preflight' => [
+        'enabled' => (bool) env('AI_PREFLIGHT_ENABLED', true),
+        'provider' => env('AI_PREFLIGHT_PROVIDER', 'gemini-decisions'),
+        'timeout' => (int) env('AI_PREFLIGHT_TIMEOUT', 3),
+        'injection_threshold' => (float) env('AI_PREFLIGHT_INJECTION_THRESHOLD', 0.85),
+    ],
 
     /*
     |--------------------------------------------------------------------------
@@ -108,6 +125,17 @@ return [
                 'text' => [
                     'default' => env('GEMINI_TEXT_MODEL', 'gemini-3.1-flash-lite'),
                     'cheapest' => env('GEMINI_CHEAPEST_MODEL', 'gemini-3.1-flash-lite'),
+                ],
+            ],
+        ],
+
+        'gemini-decisions' => [
+            'driver' => 'gemini-decisions',
+            'key' => env('GEMINI_DECISIONS_API_KEY'),
+            'url' => env('GEMINI_URL', 'https://generativelanguage.googleapis.com/v1beta/'),
+            'models' => [
+                'classification' => [
+                    'default' => env('GEMINI_DECISION_MODEL', 'gemini-decision-1'),
                 ],
             ],
         ],

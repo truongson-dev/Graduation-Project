@@ -1,8 +1,9 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { cleanup, fireEvent, render, screen } from '@testing-library/react';
+import { cleanup, fireEvent, render, screen, within } from '@testing-library/react';
 import { MemoryRouter } from 'react-router';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { PracticeLivePage, parseSlideNotes } from './PracticeLivePage';
+import { resetVisionTasksCacheForTesting } from '../hooks/useMediaPipeTracking';
 
 // Mock dependencies that require browser canvas, video stream, or wasm
 vi.mock('@mediapipe/tasks-vision', () => ({
@@ -30,6 +31,7 @@ vi.mock('pdfjs-dist', () => ({
       numPages: 3,
       getPage: vi.fn().mockResolvedValue({
         getViewport: vi.fn().mockReturnValue({ width: 800, height: 600 }),
+        getTextContent: vi.fn().mockResolvedValue({ items: [] }),
         render: vi.fn().mockReturnValue({
           promise: Promise.resolve(),
           cancel: vi.fn(),
@@ -67,13 +69,73 @@ class MockSpeechRecognition {
   abort = vi.fn();
 }
 
+class MockAudioContext {
+  state = 'running';
+  resume = vi.fn().mockResolvedValue(undefined);
+  close = vi.fn().mockResolvedValue(undefined);
+  createAnalyser = vi.fn().mockReturnValue({
+    fftSize: 512,
+    frequencyBinCount: 256,
+    getByteTimeDomainData: vi.fn(),
+  });
+  createMediaStreamSource = vi.fn().mockReturnValue({
+    connect: vi.fn(),
+  });
+}
+
+class MockMediaRecorder {
+  static isTypeSupported = vi.fn().mockReturnValue(true);
+  state = 'inactive';
+  start = vi.fn().mockImplementation(function (this: MockMediaRecorder) {
+    this.state = 'recording';
+  });
+  stop = vi.fn().mockImplementation(function (this: MockMediaRecorder) {
+    this.state = 'inactive';
+    this.onstop?.();
+  });
+  pause = vi.fn().mockImplementation(function (this: MockMediaRecorder) {
+    this.state = 'paused';
+  });
+  resume = vi.fn().mockImplementation(function (this: MockMediaRecorder) {
+    this.state = 'recording';
+  });
+  ondataavailable: ((event: { data: Blob }) => void) | null = null;
+  onstop: (() => void) | null = null;
+}
+
+class MockMediaStream {
+  tracks: unknown[] = [];
+  active = true;
+  constructor(tracks: unknown[] = []) {
+    this.tracks = tracks;
+  }
+  getTracks() { return this.tracks; }
+  getAudioTracks() { return this.tracks; }
+  getVideoTracks() { return this.tracks; }
+}
+
 describe('PracticeLivePage Web Speech API', () => {
   beforeEach(() => {
     (window as unknown as { SpeechRecognition: typeof MockSpeechRecognition }).SpeechRecognition = MockSpeechRecognition;
+    (window as unknown as { AudioContext: typeof MockAudioContext }).AudioContext = MockAudioContext;
+    (window as unknown as { MediaRecorder: typeof MockMediaRecorder }).MediaRecorder = MockMediaRecorder;
+    (window as unknown as { MediaStream: typeof MockMediaStream }).MediaStream = MockMediaStream;
+
+    const mockTrack = { stop: vi.fn(), enabled: true, readyState: 'live' };
+    const mockStream = new MockMediaStream([mockTrack]);
+    Object.defineProperty(navigator, 'mediaDevices', {
+      value: {
+        getUserMedia: vi.fn().mockResolvedValue(mockStream),
+      },
+      writable: true,
+      configurable: true,
+    });
+    HTMLMediaElement.prototype.play = vi.fn().mockResolvedValue(undefined);
   });
 
   afterEach(() => {
     cleanup();
+    resetVisionTasksCacheForTesting();
     vi.restoreAllMocks();
   });
 
@@ -96,12 +158,27 @@ describe('PracticeLivePage Web Speech API', () => {
     expect(screen.getByText('Slide 1 introduction')).toBeTruthy();
     expect((screen.getByRole('button', { name: 'Trang trước' }) as HTMLButtonElement).disabled).toBe(true);
 
-    fireEvent.click(screen.getByRole('tab', { name: /ai nhận xét/i }));
+    fireEvent.click(screen.getByRole('tab', { name: /thông số/i }));
 
-    expect(screen.getByText('Tốc độ nói')).toBeTruthy();
-    expect(screen.getByText('Từ đệm')).toBeTruthy();
+    expect(screen.queryByText('Tốc độ nói')).toBeNull();
+    expect(screen.queryByText('Từ đệm')).toBeNull();
     expect(screen.getByText('Giao tiếp mắt')).toBeTruthy();
     expect(screen.getByText('Tư thế')).toBeTruthy();
+  });
+
+  it('does not render countdown timer overlay when entering practice session', () => {
+    const dummyFile = new File(['dummy content'], 'test_slide.pdf', { type: 'application/pdf' });
+    render(<PracticeLivePage />, {
+      wrapper: createWrapper({
+        practice: {
+          file: dummyFile,
+          slideContent: 'Slide 1 introduction',
+          autoStart: true,
+        },
+      }),
+    });
+
+    expect(screen.queryByText('Bắt đầu sau')).toBeNull();
   });
 
   it('renders zoom button and controls slide zoom via slider and reset button', () => {
@@ -284,5 +361,125 @@ Nội dung chi tiết trang 2`;
       1: 'Tiêu đề trang 1\nNội dung chi tiết trang 1',
       2: 'Tiêu đề trang 2\nNội dung chi tiết trang 2',
     });
+  });
+
+  it('renders speaker video element and camera tile even on default Ghi chú tab', () => {
+    const dummyFile = new File(['dummy content'], 'test_slide.pdf', { type: 'application/pdf' });
+    const { container } = render(<PracticeLivePage />, {
+      wrapper: createWrapper({
+        practice: {
+          file: dummyFile,
+          slideContent: 'Slide 1 introduction',
+          autoStart: false,
+        },
+      }),
+    });
+
+    // Check that video element is mounted in DOM
+    const video = container.querySelector('video');
+    expect(video).toBeTruthy();
+    // Check that Ghi chú tab is active
+    expect(screen.getByRole('tabpanel', { name: 'Ghi chú trình chiếu' })).toBeTruthy();
+  });
+
+  it('runs the 15-minute presentation timer when autoStart is enabled', async () => {
+    const dummyFile = new File(['dummy content'], 'test_slide.pdf', { type: 'application/pdf' });
+    render(<PracticeLivePage />, {
+      wrapper: createWrapper({
+        practice: {
+          file: dummyFile,
+          slideContent: 'Slide 1 introduction',
+          autoStart: true,
+        },
+      }),
+    });
+
+    // Wait for async startSession to transition status to live
+    await vi.waitFor(() => {
+      expect(screen.getByRole('button', { name: 'Tạm dừng thuyết trình' })).toBeTruthy();
+    });
+
+    vi.useFakeTimers();
+    await vi.advanceTimersByTimeAsync(3000);
+
+    // Timer has advanced past 00:00
+    expect(screen.getByText(/00:0[2-5]/)).toBeTruthy();
+
+    vi.useRealTimers();
+  });
+
+  it('pauses, resumes, and resets the 15-minute presentation timer', async () => {
+    const dummyFile = new File(['dummy content'], 'test_slide.pdf', { type: 'application/pdf' });
+    render(<PracticeLivePage />, {
+      wrapper: createWrapper({
+        practice: {
+          file: dummyFile,
+          slideContent: 'Slide 1 introduction',
+          autoStart: true,
+        },
+      }),
+    });
+
+    await vi.waitFor(() => {
+      expect(screen.getByRole('button', { name: 'Tạm dừng thuyết trình' })).toBeTruthy();
+    });
+
+    vi.useFakeTimers();
+    await vi.advanceTimersByTimeAsync(2000);
+    const timeBeforePause = screen.getByText(/00:0[1-9]/).textContent;
+
+    // Pause
+    const pauseBtn = screen.getByRole('button', { name: 'Tạm dừng thuyết trình' });
+    fireEvent.click(pauseBtn);
+
+    // Wait while paused
+    await vi.advanceTimersByTimeAsync(3000);
+    // Should still be unchanged
+    expect(screen.getByText(timeBeforePause!)).toBeTruthy();
+
+    // Resume
+    const resumeBtn = screen.getByRole('button', { name: 'Tiếp tục thuyết trình' });
+    fireEvent.click(resumeBtn);
+
+    await vi.advanceTimersByTimeAsync(2000);
+    expect(screen.queryByText(timeBeforePause!)).toBeNull();
+
+    // Reset
+    const resetBtn = screen.getByRole('button', { name: 'Đặt lại thời gian về 00:00' });
+    fireEvent.click(resetBtn);
+
+    expect(screen.getByText('00:00')).toBeTruthy();
+
+    vi.useRealTimers();
+  });
+
+  it('renders completion summary dialog with Thời gian, Giao tiếp mắt, Tư thế and without Từ đệm, Tốc độ, Tự tin', async () => {
+    const dummyFile = new File(['dummy content'], 'test_slide.pdf', { type: 'application/pdf' });
+    render(<PracticeLivePage />, {
+      wrapper: createWrapper({
+        practice: {
+          file: dummyFile,
+          slideContent: 'Slide 1 introduction',
+          autoStart: true,
+        },
+      }),
+    });
+
+    await vi.waitFor(() => {
+      expect(screen.getByRole('button', { name: 'Kết thúc thuyết trình' })).toBeTruthy();
+    });
+
+    const finishBtn = screen.getByRole('button', { name: 'Kết thúc thuyết trình' });
+    fireEvent.click(finishBtn);
+
+    const dialog = screen.getByRole('dialog');
+    expect(within(dialog).getByText('Tóm tắt phiên thuyết trình')).toBeTruthy();
+    expect(within(dialog).getByText('Thời gian')).toBeTruthy();
+    expect(within(dialog).getByText('Giao tiếp mắt')).toBeTruthy();
+    expect(within(dialog).getByText('Tư thế')).toBeTruthy();
+
+    expect(within(dialog).queryByText('Từ đệm')).toBeNull();
+    expect(within(dialog).queryByText('Tốc độ')).toBeNull();
+    expect(within(dialog).queryByText('Tự tin')).toBeNull();
   });
 });

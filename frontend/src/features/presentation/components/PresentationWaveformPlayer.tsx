@@ -20,6 +20,7 @@ export interface PresentationWaveformPlayerProps {
   fillers: number;
   aiSummary?: string;
   className?: string;
+  bare?: boolean;
 }
 
 // Safely parse duration label (e.g. "03:15", "1:20", or seconds) into number of seconds
@@ -62,6 +63,7 @@ export const PresentationWaveformPlayer: React.FC<PresentationWaveformPlayerProp
   fillers,
   aiSummary,
   className = '',
+  bare = false,
 }) => {
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const waveformRef = useRef<HTMLDivElement | null>(null);
@@ -198,6 +200,171 @@ export const PresentationWaveformPlayer: React.FC<PresentationWaveformPlayerProp
     effectiveDuration > 0
       ? Math.max(0, Math.min(100, (currentTime / effectiveDuration) * 100))
       : 0;
+
+  if (bare) {
+    return (
+      <div className={cn("space-y-3", className)}>
+        {audioUrl && (
+          <audio
+            ref={audioRef}
+            src={audioUrl}
+            preload="metadata"
+            crossOrigin="use-credentials"
+            data-testid="presentation-audio"
+          />
+        )}
+
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-2.5 border-b border-slate-100">
+          <div className="flex items-center gap-2">
+            <div className="flex size-6 items-center justify-center rounded bg-blue-50 text-blue-600">
+              <Volume2 className="size-3.5" />
+            </div>
+            <div>
+              <p className="text-xs font-semibold text-slate-900">
+                {audioUrl ? 'Bản ghi âm giọng nói' : 'Không có tệp ghi âm'}
+              </p>
+              <p className="text-[11px] text-slate-400">
+                Đồng bộ timeline phát âm và đánh dấu vị trí từ đệm
+              </p>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-2">
+            <div className="flex items-center gap-1 rounded-md border border-slate-200 bg-slate-50 px-2 py-0.5 text-xs font-mono tabular-nums text-slate-700">
+              <span className="font-semibold text-slate-900">{formatTime(currentTime)}</span>
+              <span className="text-slate-300">/</span>
+              <span className="text-slate-500">{displayDuration}</span>
+            </div>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={cycleSpeed}
+              data-testid="presentation-speed-btn"
+              className="h-6 rounded-md border-slate-200 text-[11px] font-mono font-semibold px-2 hover:bg-slate-50"
+              title="Tốc độ phát lại"
+            >
+              {playbackRate}x
+            </Button>
+          </div>
+        </div>
+
+        {/* Transport & Waveform */}
+        <div className="flex items-center gap-2">
+          <Button
+            type="button"
+            variant="outline"
+            size="icon"
+            onClick={() => handleSkip(-5)}
+            disabled={!audioUrl}
+            className="size-8 shrink-0 rounded-lg border-slate-200 text-slate-600 hover:bg-slate-50 disabled:opacity-40"
+            title="Lùi 5 giây"
+            aria-label="Lùi 5 giây"
+          >
+            <RotateCcw className="size-3.5" />
+          </Button>
+
+          <Button
+            type="button"
+            size="icon"
+            onClick={togglePlay}
+            disabled={!audioUrl}
+            data-testid="presentation-play-btn"
+            className="size-8 shrink-0 rounded-lg bg-blue-600 hover:bg-blue-700 text-white shadow-xs disabled:opacity-40"
+            title={isPlaying ? 'Tạm dừng' : 'Phát bản ghi'}
+            aria-label={isPlaying ? 'Tạm dừng' : 'Phát bản ghi'}
+          >
+            {isPlaying ? (
+              <Pause className="size-3.5 fill-current" />
+            ) : (
+              <Play className="size-3.5 fill-current ml-0.5" />
+            )}
+          </Button>
+
+          <Button
+            type="button"
+            variant="outline"
+            size="icon"
+            onClick={() => handleSkip(5)}
+            disabled={!audioUrl}
+            className="size-8 shrink-0 rounded-lg border-slate-200 text-slate-600 hover:bg-slate-50 disabled:opacity-40"
+            title="Tua tới 5 giây"
+            aria-label="Tua tới 5 giây"
+          >
+            <RotateCw className="size-3.5" />
+          </Button>
+
+          {/* Waveform Track */}
+          <div
+            ref={waveformRef}
+            onClick={handleWaveformClick}
+            onMouseMove={handleWaveformMouseMove}
+            onMouseLeave={() => setHoverPercent(null)}
+            className="group relative flex h-10 flex-1 cursor-pointer items-end gap-[2px] overflow-hidden rounded-lg border border-slate-200 bg-slate-50 px-2 py-1 hover:bg-slate-100/70 transition-colors"
+            role="slider"
+            aria-label="Thanh trượt âm thanh"
+            aria-valuemin={0}
+            aria-valuemax={100}
+            aria-valuenow={Math.round(currentPercent)}
+          >
+            {/* Hover Tooltip */}
+            {hoverPercent !== null && effectiveDuration > 0 && (
+              <div
+                className="pointer-events-none absolute -top-1 -translate-x-1/2 -translate-y-full z-20 rounded bg-slate-900 px-1.5 py-0.5 text-[10px] font-mono text-white shadow-md"
+                style={{ left: `${hoverPercent}%` }}
+              >
+                {formatTime((hoverPercent / 100) * effectiveDuration)}
+              </div>
+            )}
+
+            {/* Progress Cursor */}
+            <div
+              className="pointer-events-none absolute inset-y-0 z-15 w-0.5 bg-blue-600"
+              style={{ left: `${currentPercent}%` }}
+            />
+
+            {/* Waveform Bars */}
+            {WAVEFORM_BAR_HEIGHTS.map((h, i) => {
+              const percent = (i / WAVEFORM_BAR_HEIGHTS.length) * 100;
+              const isPast = percent <= currentPercent;
+              const isFillerSpike = fillers > 0 && fillerIndices.has(i);
+
+              let barColor = isPast
+                ? 'bg-blue-600'
+                : 'bg-slate-200 group-hover:bg-slate-300';
+
+              if (isFillerSpike) {
+                barColor = isPast ? 'bg-amber-500' : 'bg-amber-400';
+              }
+
+              return (
+                <div
+                  key={i}
+                  className={cn("flex-1 rounded-full transition-colors", barColor)}
+                  style={{ height: `${Math.max(16, h * 0.85)}%` }}
+                />
+              );
+            })}
+          </div>
+        </div>
+
+        {/* Dynamic Status Label */}
+        <div className="flex items-center justify-between text-[11px] text-slate-500 pt-0.5">
+          {fillers === 0 ? (
+            <span className="flex items-center gap-1.5 text-emerald-600 font-medium">
+              <CheckCircle2 className="size-3 text-emerald-500" /> Nhịp phát âm lưu loát, không phát hiện từ đệm
+            </span>
+          ) : (
+            <span className="flex items-center gap-1.5 text-amber-700 font-medium">
+              <AlertCircle className="size-3 text-amber-500" />
+              Ghi nhận {fillers} vị trí từ đệm (đánh dấu màu cam trên thanh sóng)
+            </span>
+          )}
+          <span className="text-[10px] text-slate-400">Nhấp vào sóng để tua nhanh</span>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <Card
@@ -398,7 +565,7 @@ export const PresentationWaveformPlayer: React.FC<PresentationWaveformPlayerProp
           </div>
 
           {/* AI Coach Feedback Block */}
-          <div className="rounded-xl border border-blue-100/90 bg-gradient-to-br from-blue-50/50 via-slate-50/30 to-indigo-50/20 p-3.5 sm:p-4">
+          <div className="rounded-xl border border-slate-200/90 bg-slate-50/80 p-3.5 sm:p-4">
             <div className="flex items-start gap-3">
               <div className="flex size-7 shrink-0 items-center justify-center rounded-lg bg-blue-600 text-white shadow-2xs mt-0.5">
                 <Sparkles className="size-3.5" />

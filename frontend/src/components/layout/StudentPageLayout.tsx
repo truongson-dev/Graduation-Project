@@ -1,9 +1,15 @@
 import { useState, useEffect, type ReactNode } from 'react';
-import { Link, useNavigate } from 'react-router';
-import { useLogout, useMe } from '@/lib/auth';
+import { Link, useLocation, useNavigate } from 'react-router';
+import { useLogout, useMe } from '@/features/auth/api/auth';
 import { useSidebarCollapsed } from '@/hooks/use-sidebar';
 import { BrandMark } from './BrandMark';
 import { UserAvatar } from './UserAvatar';
+import { MobileBottomNav } from './MobileBottomNav';
+import {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from '../ui/collapsible';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -28,19 +34,44 @@ import {
 import {
   BadgeCheck,
   Bell,
+  ChevronDown,
   ChevronsUpDown,
   CreditCard,
   LogOut,
+  Settings,
   ShieldCheck,
   Sparkles,
 } from 'lucide-react';
 
-const items = [
+type NavSubItem = {
+  label: string;
+  icon: string;
+  to: string;
+  tab: string;
+};
+
+type NavItem = {
+  label: string;
+  icon: string;
+  to: string;
+  children?: NavSubItem[];
+};
+
+const items: NavItem[] = [
   { label: 'Trang chủ', icon: 'home', to: '/home' },
   { label: 'Lộ trình học', icon: 'route', to: '/learning-path' },
   { label: 'Luyện thuyết trình với AI', icon: 'record_voice_over', to: '/practice/setup' },
   { label: 'Thành tích', icon: 'emoji_events', to: '/achievements' },
-  { label: 'Cộng đồng', icon: 'forum', to: '/community' },
+  {
+    label: 'Cộng đồng',
+    icon: 'forum',
+    to: '/community',
+    children: [
+      { label: 'Đã lưu', icon: 'bookmark', to: '/community?tab=saved', tab: 'saved' },
+      { label: 'Đã thích', icon: 'favorite', to: '/community?tab=liked', tab: 'liked' },
+      { label: 'Đang theo dõi', icon: 'group', to: '/community?tab=following', tab: 'following' },
+    ],
+  },
 ];
 
 function Icon({ name, className = '' }: { name: string; className?: string }) {
@@ -115,9 +146,19 @@ function UserDropdownMenuContent({
       <DropdownMenuSeparator className="my-1 -mx-1" />
 
       <DropdownMenuGroup>
-        <DropdownMenuItem className="cursor-pointer gap-2.5 rounded-lg px-2.5 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-100 hover:text-slate-900 transition-colors">
+        <DropdownMenuItem
+          onClick={() => navigate('/profile')}
+          className="cursor-pointer gap-2.5 rounded-lg px-2.5 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-100 hover:text-slate-900 transition-colors"
+        >
           <BadgeCheck className="size-4 text-slate-500" />
           <span>Tài khoản</span>
+        </DropdownMenuItem>
+        <DropdownMenuItem
+          onClick={() => navigate('/settings')}
+          className="cursor-pointer gap-2.5 rounded-lg px-2.5 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-100 hover:text-slate-900 transition-colors"
+        >
+          <Settings className="size-4 text-slate-500" />
+          <span>Cài đặt</span>
         </DropdownMenuItem>
         <DropdownMenuItem className="cursor-pointer gap-2.5 rounded-lg px-2.5 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-100 hover:text-slate-900 transition-colors">
           <CreditCard className="size-4 text-slate-500" />
@@ -128,6 +169,21 @@ function UserDropdownMenuContent({
           <span>Thông báo</span>
         </DropdownMenuItem>
       </DropdownMenuGroup>
+
+      {user?.roles?.includes('admin') && (
+        <>
+          <DropdownMenuSeparator className="my-1 -mx-1" />
+          <DropdownMenuGroup>
+            <DropdownMenuItem
+              onClick={() => navigate('/admin')}
+              className="cursor-pointer gap-2.5 rounded-lg px-2.5 py-2 text-xs font-bold text-indigo-700 bg-indigo-50/80 hover:bg-indigo-100 hover:text-indigo-900 transition-colors"
+            >
+              <ShieldCheck className="size-4 text-indigo-600" />
+              <span>Trang quản trị (Admin)</span>
+            </DropdownMenuItem>
+          </DropdownMenuGroup>
+        </>
+      )}
 
       <DropdownMenuSeparator className="my-1 -mx-1" />
 
@@ -146,12 +202,12 @@ function UserDropdownMenuContent({
 
 export function StudentPageLayout({
   active,
-  title,
+  title: _title,
   children,
   maxWidth = 'max-w-[1720px]',
   bgClassName = 'bg-[#f1f4fa]',
 }: {
-  active: string;
+  active?: string;
   title?: string;
   children: ReactNode;
   maxWidth?: string;
@@ -159,11 +215,21 @@ export function StudentPageLayout({
 }) {
   const [collapsed, toggleCollapsed] = useSidebarCollapsed();
   const [mobileOpen, setMobileOpen] = useState(false);
+  const location = useLocation();
   const navigate = useNavigate();
   const user = useMe().data;
   const logout = useLogout();
   const logoutNow = () => logout.mutate(undefined, { onSettled: () => navigate('/', { replace: true }) });
   const initials = (user?.name ?? 'HV').split(/\s+/).map((part) => part[0]).slice(-2).join('').toUpperCase();
+  const currentCommunityTab =
+    active === '/community' ? new URLSearchParams(location.search).get('tab') : null;
+  const [communityOpen, setCommunityOpen] = useState(() => active === '/community');
+
+  useEffect(() => {
+    if (active === '/community') {
+      setCommunityOpen(true);
+    }
+  }, [active]);
 
   // Đóng sidebar di động ngay lập tức khi người dùng chuyển sang màn hình desktop (>= 1024px)
   useEffect(() => {
@@ -198,6 +264,160 @@ export function StudentPageLayout({
   const nav = (mobile = false) => (
     <nav aria-label="Điều hướng chính" className="flex flex-col gap-1.5">
       {items.map((item) => {
+        if (item.children) {
+          const activeChild = item.children.find(
+            (sub) => active === item.to && currentCommunityTab === sub.tab,
+          );
+          const isParentCurrent = active === item.to && !activeChild;
+          const hasActiveChild = Boolean(activeChild);
+
+          if (collapsed && !mobile) {
+            return (
+              <div key={item.to} className="relative flex w-full items-center">
+                <DropdownMenu modal={false}>
+                  <Tooltip>
+                    <TooltipTrigger
+                      render={
+                        <DropdownMenuTrigger
+                          aria-label={item.label}
+                          className={`group relative flex h-10 w-full items-center rounded-xl font-semibold transition-colors duration-200 overflow-hidden cursor-pointer outline-none focus-visible:ring-2 focus-visible:ring-blue-500/20 ${
+                            isParentCurrent
+                              ? 'bg-blue-700 text-white shadow-sm'
+                              : hasActiveChild
+                                ? 'bg-blue-50 text-blue-700'
+                                : 'text-slate-600 hover:bg-blue-50 hover:text-blue-700'
+                          }`}
+                        >
+                          <div className="flex h-10 w-10 shrink-0 items-center justify-center">
+                            <Icon name={item.icon} className="text-[20px]" />
+                          </div>
+                          <span className="sr-only">{item.label}</span>
+                        </DropdownMenuTrigger>
+                      }
+                    />
+                    <TooltipContent side="right" sideOffset={14}>
+                      {item.label}
+                    </TooltipContent>
+                  </Tooltip>
+                  <DropdownMenuContent
+                    side="right"
+                    align="start"
+                    sideOffset={14}
+                    className="w-52 rounded-2xl border border-slate-200 bg-white p-1.5 shadow-xl"
+                  >
+                    <DropdownMenuItem
+                      onClick={() => navigate(item.to)}
+                      className={`cursor-pointer gap-2.5 rounded-xl px-2.5 py-2 text-xs font-semibold transition-colors ${
+                        isParentCurrent
+                          ? 'bg-blue-700 text-white focus:bg-blue-700 focus:text-white'
+                          : 'text-slate-700 hover:bg-blue-50 hover:text-blue-700'
+                      }`}
+                    >
+                      <Icon name={item.icon} className="text-[17px]" />
+                      <span>Bảng tin Cộng đồng</span>
+                    </DropdownMenuItem>
+                    <DropdownMenuSeparator className="my-1 -mx-1" />
+                    <DropdownMenuGroup>
+                      {item.children.map((sub) => {
+                        const subActive = activeChild?.tab === sub.tab;
+                        return (
+                          <DropdownMenuItem
+                            key={sub.to}
+                            onClick={() => navigate(sub.to)}
+                            className={`cursor-pointer gap-2.5 rounded-xl px-2.5 py-2 text-xs font-semibold transition-colors ${
+                              subActive
+                                ? 'bg-blue-700 text-white focus:bg-blue-700 focus:text-white'
+                                : 'text-slate-600 hover:bg-blue-50 hover:text-blue-700'
+                            }`}
+                          >
+                            <Icon name={sub.icon} className="text-[17px]" />
+                            <span>{sub.label}</span>
+                          </DropdownMenuItem>
+                        );
+                      })}
+                    </DropdownMenuGroup>
+                  </DropdownMenuContent>
+                </DropdownMenu>
+              </div>
+            );
+          }
+
+          return (
+            <Collapsible
+              key={item.to}
+              open={communityOpen}
+              onOpenChange={setCommunityOpen}
+              className="flex w-full flex-col"
+            >
+              <div
+                data-active={isParentCurrent ? 'true' : undefined}
+                className={`group relative flex h-10 w-full items-center rounded-xl font-semibold transition-colors duration-200 overflow-hidden ${
+                  isParentCurrent
+                    ? 'bg-blue-700 text-white shadow-sm'
+                    : hasActiveChild
+                      ? 'bg-blue-50 text-blue-700'
+                      : 'text-slate-600 hover:bg-blue-50 hover:text-blue-700'
+                }`}
+              >
+                <Link
+                  to={item.to}
+                  onClick={() => {
+                    setCommunityOpen(true);
+                    if (mobile) setMobileOpen(false);
+                  }}
+                  aria-current={isParentCurrent ? 'page' : undefined}
+                  className="flex h-full min-w-0 flex-1 items-center"
+                >
+                  <div className="flex h-10 w-10 shrink-0 items-center justify-center">
+                    <Icon name={item.icon} className="text-[20px]" />
+                  </div>
+                  <span className="whitespace-nowrap overflow-hidden text-[13px] select-none">
+                    {item.label}
+                  </span>
+                </Link>
+                <CollapsibleTrigger
+                  type="button"
+                  aria-label={`Mở rộng menu ${item.label}`}
+                  className={`mr-1.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-lg transition-colors cursor-pointer outline-none focus-visible:ring-2 focus-visible:ring-blue-500/20 ${
+                    isParentCurrent
+                      ? 'text-white/90 hover:bg-white/15 hover:text-white'
+                      : 'text-slate-400 hover:bg-blue-100/70 hover:text-blue-700'
+                  }`}
+                >
+                  <ChevronDown
+                    className={`size-4 transition-transform duration-200 ${
+                      communityOpen ? 'rotate-180' : ''
+                    }`}
+                  />
+                </CollapsibleTrigger>
+              </div>
+              <CollapsibleContent className="overflow-hidden">
+                <div className="ml-5 mt-1 flex flex-col gap-1 border-l border-slate-200 pl-3">
+                  {item.children.map((sub) => {
+                    const subActive = activeChild?.tab === sub.tab;
+                    return (
+                      <Link
+                        key={sub.to}
+                        to={sub.to}
+                        onClick={() => mobile && setMobileOpen(false)}
+                        aria-current={subActive ? 'page' : undefined}
+                        className={`flex h-9 w-full items-center gap-2.5 rounded-xl px-2.5 text-[12.5px] font-semibold transition-colors ${
+                          subActive
+                            ? 'bg-blue-700 text-white shadow-sm'
+                            : 'text-slate-600 hover:bg-blue-50 hover:text-blue-700'
+                        }`}
+                      >
+                        <Icon name={sub.icon} className="text-[18px] shrink-0" />
+                        <span className="truncate select-none">{sub.label}</span>
+                      </Link>
+                    );
+                  })}
+                </div>
+              </CollapsibleContent>
+            </Collapsible>
+          );
+        }
+
         const link = (
           <Link
             to={item.to}
@@ -240,6 +460,12 @@ export function StudentPageLayout({
 
   return (
     <div className={`min-h-screen ${bgClassName} text-slate-800`}>
+      <a
+        href="#main-content"
+        className="sr-only focus:not-sr-only focus:fixed focus:top-3 focus:left-3 focus:z-50 focus:rounded-xl focus:bg-blue-600 focus:px-4 focus:py-2 focus:text-sm focus:font-semibold focus:text-white focus:shadow-lg focus:outline-none focus:ring-2 focus:ring-blue-400"
+      >
+        Chuyển đến nội dung chính
+      </a>
       <aside
         className={`fixed inset-y-0 left-0 z-40 hidden flex-col border-r border-slate-200/80 bg-white px-[18px] transition-[width] duration-300 ease-in-out overflow-hidden will-change-[width] lg:flex ${
           collapsed ? 'w-[76px]' : 'w-[260px]'
@@ -523,8 +749,16 @@ export function StudentPageLayout({
           </SheetContent>
         </Sheet>
 
-        <main className={`mx-auto ${maxWidth} px-4 pb-10 pt-[84px] sm:px-6 lg:px-8`}>{children}</main>
+        <main
+          id="main-content"
+          tabIndex={-1}
+          className={`mx-auto ${maxWidth} px-4 pb-24 pt-[84px] sm:px-6 lg:px-8 lg:pb-10 outline-none`}
+        >
+          {children}
+        </main>
       </div>
+
+      <MobileBottomNav active={active} />
     </div>
   );
 }
